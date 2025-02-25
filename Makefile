@@ -10,7 +10,7 @@ lint:
 build: clean lint
 	mkdir -p $(BUILD_DIRECTORY)
 
-	BUILD_DIRECTORY=$(BUILD_DIRECTORY) tox -e render
+	BUILD_DIRECTORY=$(BUILD_DIRECTORY) IMPL=$(IMPL) tox -e render
 
 	cd $(BUILD_DIRECTORY) && charmcraft pack --destructive-mode
 

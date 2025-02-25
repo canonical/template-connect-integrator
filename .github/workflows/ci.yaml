@@ -62,12 +62,12 @@ jobs:
           - integration
           - examples.mysql
 
-    name: ${{ matrix.tox-environments }}-{{ matrix.impl }}
+    name: ${{ matrix.tox-environments }}-${{ matrix.impl }}
     needs:
       - lint
       - unit-test
       - build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 240
     steps:
       - name: Checkout
