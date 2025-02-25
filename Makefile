@@ -12,7 +12,7 @@ build: clean lint
 
 	BUILD_DIRECTORY=$(BUILD_DIRECTORY) IMPL=$(IMPL) tox -e render
 
-	cd $(BUILD_DIRECTORY) && charmcraft pack --destructive-mode
+	cd $(BUILD_DIRECTORY) && sudo charmcraft pack --destructive-mode
 
 deploy: build
 	juju deploy $(BUILD_DIRECTORY)/bundle.zip
