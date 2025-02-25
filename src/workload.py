@@ -21,9 +21,7 @@ from charms.operator_libs_linux.v1.systemd import (
 )
 from tenacity import (
     retry,
-    retry_any,
     retry_if_exception,
-    retry_if_result,
     stop_after_attempt,
     wait_fixed,
 )
@@ -66,9 +64,7 @@ class PluginServer(BasePluginServer):
     @retry(
         wait=wait_fixed(1),
         stop=stop_after_attempt(5),
-        retry=retry_any(
-            retry_if_result(lambda result: result is False), retry_if_exception(lambda _: True)
-        ),
+        retry=retry_if_exception(lambda _: True),
         retry_error_callback=lambda _: False,
     )
     def health_check(self) -> bool:

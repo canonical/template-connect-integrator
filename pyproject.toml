@@ -101,7 +101,7 @@ tenacity = ">=7.0"
 pure-sasl = ">=0.5"
 requests = ">2.25"
 
-# TODO: enale pytest-operator-cache when kafka-connect is released
+# TODO: enable pytest-operator-cache when kafka-connect is released
 # pytest-operator-cache = { git = "https://github.com/canonical/data-platform-workflows", tag = "v24.0.5", subdirectory = "python/pytest_plugins/pytest_operator_cache" }
 
 [tool.poetry.group.format.dependencies]
