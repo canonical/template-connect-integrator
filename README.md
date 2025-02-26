@@ -15,7 +15,7 @@ make build \
     IMPL=examples.mysql \
     DATA_INTERFACE=mysql_client
 
-juju deploy build/*.charm --resource connect-plugin=/path/to/plugin.tar
+juju deploy build/*.charm --resource connect-plugin=/path/to/plugin.tar --config mode=[source|sink]
 ```
 
 ## Integration with Kafka Connect
@@ -26,6 +26,6 @@ juju deploy kafka --config roles="broker,controller" -n 3
 juju deploy kafka-connect 
 juju integrate kafka kafka-connect
 
-# Integrate with the integrator source or sink interface
-juju integrate kafka-connect kafka-connect-integrator:[source|sink]
+# Integrate kafka connect with the integrator
+juju integrate kafka-connect kafka-connect-integrator
 ```
