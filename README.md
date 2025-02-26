@@ -6,9 +6,16 @@ To build and use this charm, the `connect-plugin` resource should be provided ei
 
 ## Build & Deploy Instructions
 
+To use this template charm, you should provide an implementation of `BaseIntegrator` and `BaseConfigFormatter`. Some example implementations are provided in the `examples` folder.  Then, you could easily build the integrator charm using `make` tool:
+
 ```bash
-charmcraft pack
-juju deploy *.charm --resource connect-plugin=/path/to/plugin.tar
+make build \
+    NAME=my-mysql-integrator \
+    BUILD_DIRECTORY=build \
+    IMPL=examples.mysql \
+    DATA_INTERFACE=mysql_client
+
+juju deploy build/*.charm --resource connect-plugin=/path/to/plugin.tar
 ```
 
 ## Integration with Kafka Connect

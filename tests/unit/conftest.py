@@ -13,7 +13,7 @@ from src.literals import PLUGIN_RESOURCE_KEY, SUBSTRATE
 
 CONFIG = yaml.safe_load(Path("./config.yaml").read_text())
 ACTIONS = yaml.safe_load(Path("./actions.yaml").read_text())
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METADATA = yaml.safe_load(Path("tests/unit/test-charm/metadata.yaml").read_text())
 
 
 @pytest.fixture()

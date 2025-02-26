@@ -242,7 +242,7 @@ class ConnectClient:
         auth = HTTPBasicAuth(self.client_context.username, self.client_context.password)
 
         try:
-            response = requests.request(method, url, auth=auth, **kwargs)
+            response = requests.request(method, url, verify=False, auth=auth, **kwargs)
         except Exception as e:
             raise ConnectApiError(f"Connect API call /{api} failed: {e}")
 

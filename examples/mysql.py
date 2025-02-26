@@ -28,6 +28,7 @@ class MySQLConfigFormatter(BaseConfigFormatter):
     topic_replication_factor = ConfigOption(
         json_key="topic.creation.default.replication.factor", default=-1
     )
+    db_name = ConfigOption(json_key="ignore.db_name", default="test_db")
 
     # non-configurable options
     connector_class = ConfigOption(
@@ -52,14 +53,16 @@ class Integrator(BaseIntegrator):
     formatter = MySQLConfigFormatter
     plugin_server = PluginServer
 
+    CONNECT_REL = "connect-client"
     DB_CLIENT_REL = "data"
-    DB_NAME = "test_db"
 
     def __init__(self, /, charm, plugin_server_args=[], plugin_server_kwargs={}):
         super().__init__(charm, plugin_server_args, plugin_server_kwargs)
 
+        self.db_name = str(self.charm.config.get("db_name", "test_db"))
+
         self.database_requirer_data = DatabaseRequirerData(
-            self.model, self.DB_CLIENT_REL, self.DB_NAME, extra_user_roles="admin"
+            self.model, self.DB_CLIENT_REL, self.db_name, extra_user_roles="admin"
         )
         self.database = DatabaseRequirerEventHandlers(self.charm, self.database_requirer_data)
 
@@ -68,7 +71,7 @@ class Integrator(BaseIntegrator):
         db = self.helpers.fetch_all_relation_data(self.DB_CLIENT_REL)
         self.configure(
             {
-                "connection.url": f"jdbc:mysql://{db.get('endpoints')}/{self.DB_NAME}",
+                "connection.url": f"jdbc:mysql://{db.get('endpoints')}/{self.db_name}",
                 "connection.user": db.get("username"),
                 "connection.password": db.get("password"),
             }
@@ -81,4 +84,4 @@ class Integrator(BaseIntegrator):
     @property
     @override
     def ready(self):
-        return self.helpers.check_data_interfaces_ready([self.DB_CLIENT_REL])
+        return self.helpers.check_data_interfaces_ready([self.DB_CLIENT_REL, self.CONNECT_REL])

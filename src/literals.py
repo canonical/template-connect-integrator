@@ -4,11 +4,20 @@
 
 """Collection of globals common to the Integrator Charm."""
 
+from pathlib import Path
 from typing import Literal
+
+import yaml
 
 Substrates = Literal["vm", "k8s"]
 
 SUBSTRATE = "vm"
+
+try:
+    METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+    CHARM_KEY = METADATA["name"]
+except FileNotFoundError:
+    CHARM_KEY = "template-integrator-charm"
 
 PEER_REL = "peer"
 CONNECT_REL = "source"

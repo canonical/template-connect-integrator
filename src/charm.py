@@ -12,6 +12,7 @@ from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, ModelError
 
 from integration import Integrator
 from literals import (
+    CHARM_KEY,
     PLUGIN_RESOURCE_KEY,
     REST_PORT,
     SUBSTRATE,
@@ -27,6 +28,7 @@ class IntegratorCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
+        self.name = CHARM_KEY
         self.context = Context(self, substrate=SUBSTRATE)
 
         self.framework.observe(self.on.start, self._on_start)
@@ -91,7 +93,13 @@ class IntegratorCharm(CharmBase):
             )
             return
 
-        event.add_status(ActiveStatus(self.integrator.task_status))
+        try:
+            event.add_status(ActiveStatus(f"Task Status: {self.integrator.task_status}"))
+        except Exception as e:
+            logger.error(e)
+            event.add_status(
+                ActiveStatus("Task Status: error communicating with Kafka Connect, check logs.")
+            )
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ from typing import cast
 import yaml
 from charms.kafka_connect.v0.integrator import BaseConfigFormatter, ConfigOption
 
-TYPE_MAPPER = {str: "string", int: "integer", bool: "boolean"}
+TYPE_MAPPER = {str: "string", int: "int", bool: "boolean"}
 
 DEFAULT_OPTIONS = {
     "mode": {
@@ -70,12 +70,10 @@ def parse_args() -> Settings:
         k: v for k, v in vars(variable_parser.parse_args(var_args)).items() if v is not None
     }
 
-    print("$$$$$$$$$$$$$$", variables)
-
     return Settings(output_path=args.output, module=args.impl)
 
 
-def render_config(output_path: Path, module: str = "integration") -> None:
+def render_config(output_path: Path, module: str = "integration") -> str | None:
     """Renders a charmcraft `config.yaml` file based on the implementation of `BaseConfigFormatter` provided in `module`."""
     integration = importlib.import_module(module, package=None)
 
@@ -123,7 +121,11 @@ def render_config(output_path: Path, module: str = "integration") -> None:
 
     yaml.safe_dump(config, open(output_path / "config.yaml", "w"))
 
+    return integration.__file__
+
 
 if __name__ == "__main__":
     settings = parse_args()
-    render_config(output_path=settings.output_path, module=settings.module)
+    integration_module = render_config(output_path=settings.output_path, module=settings.module)
+    print(integration_module)
+    os.system(f"cp {integration_module} {settings.output_path}/src/integration.py")
