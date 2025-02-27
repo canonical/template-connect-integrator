@@ -20,7 +20,7 @@ except FileNotFoundError:
     CHARM_KEY = "template-integrator-charm"
 
 PEER_REL = "peer"
-CONNECT_REL = "source"
+CONNECT_REL = "connect-client"
 
 SERVICE_NAME = "integrator-rest"
 SERVICE_PATH = f"/etc/systemd/system/{SERVICE_NAME}.service"
