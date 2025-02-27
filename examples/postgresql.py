@@ -15,7 +15,7 @@ from typing_extensions import override
 from workload import PluginServer
 
 
-class MySQLConfigFormatter(BaseConfigFormatter):
+class PostgresConfigFormatter(BaseConfigFormatter):
     """Basic implementation for Aiven JDBC connector configuration."""
 
     # configurable options [source]
@@ -56,10 +56,10 @@ class MySQLConfigFormatter(BaseConfigFormatter):
 
 
 class Integrator(BaseIntegrator):
-    """Basic implementation for Kafka Connect MySQL Integrator."""
+    """Basic implementation for Kafka Connect PostgreSQL Integrator."""
 
-    name = "mysql-integrator"
-    formatter = MySQLConfigFormatter
+    name = "postgresql-integrator"
+    formatter = PostgresConfigFormatter
     plugin_server = PluginServer
 
     CONNECT_REL = "connect-client"
@@ -87,7 +87,7 @@ class Integrator(BaseIntegrator):
         self.configure(
             {
                 "connector.class": connector_class,
-                "connection.url": f"jdbc:mysql://{db.get('endpoints')}/{self.db_name}",
+                "connection.url": f"jdbc:postgresql://{db.get('endpoints')}/{self.db_name}",
                 "connection.user": db.get("username"),
                 "connection.password": db.get("password"),
             }
