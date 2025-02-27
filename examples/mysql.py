@@ -19,7 +19,7 @@ class MySQLConfigFormatter(BaseConfigFormatter):
     """Basic implementation for Aiven JDBC connector configuration."""
 
     # configurable options [source]
-    topic_prefix = ConfigOption(json_key="topic.prefix", default="test_")
+    topic_prefix = ConfigOption(json_key="topic.prefix", default="test_", mode="source")
     select_mode = ConfigOption(json_key="mode", default="incrementing", mode="source")
     incrementing_column = ConfigOption(
         json_key="incrementing.column.name", default="id", mode="source"
@@ -34,6 +34,8 @@ class MySQLConfigFormatter(BaseConfigFormatter):
     # configurable options [sink]
     topics_regex = ConfigOption(json_key="topics.regex", default="test_.*", mode="sink")
     insert_mode = ConfigOption(json_key="insert.mode", default="insert", mode="sink")
+    pk_mode = ConfigOption(json_key="pk.mode", default="record_value", mode="sink")
+    pk_fields = ConfigOption(json_key="pk.fields", default="id", mode="sink")
 
     # non-configurable options
     tasks_max = ConfigOption(json_key="tasks.max", default=1, configurable=False)
@@ -43,7 +45,7 @@ class MySQLConfigFormatter(BaseConfigFormatter):
         json_key="key.converter",
         default="org.apache.kafka.connect.storage.StringConverter",
         configurable=False,
-        mode="source",
+        mode="sink",
     )
     value_converter = ConfigOption(
         json_key="value.converter",
