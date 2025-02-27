@@ -152,6 +152,9 @@ class ConfigOption(BaseModel):
 
     json_key: str  # Config key in the Task configuration JSON
     default: Any  # Default value
+    mode: Literal[
+        "both", "source", "sink", "none"
+    ] = "both"  # Whether this is a generic config or source/sink-only.
     configurable: bool = True  # Whether this option is configurable using charm config or not
     description: str = ""
 
@@ -177,11 +180,19 @@ class BaseConfigFormatter:
         return [v for v in dir(cls) if not callable(getattr(cls, v)) and not v.startswith("__")]
 
     @classmethod
-    def to_dict(cls, charm_config: ConfigData) -> dict:
+    def to_dict(cls, charm_config: ConfigData, mode: IntegratorMode) -> dict:
         """Serializes a given charm `ConfigData` object to a Python dictionary based on predefined mappings/defaults."""
         ret = {}
         for k in cls.fields():
             option = cast(ConfigOption, getattr(cls, k))
+
+            if option.mode == "none":
+                # This is not a task config option
+                continue
+
+            if option.mode != "both" and option.mode != mode:
+                # Source/sink-only config, skip
+                continue
 
             if option.configurable and k in charm_config:
                 ret[option.json_key] = charm_config[k]
@@ -502,7 +513,9 @@ class BaseIntegrator(ABC, Object):
         self.setup()
 
         try:
-            self._client.start_task(self.formatter.to_dict(self.config) | self.dynamic_config)
+            self._client.start_task(
+                self.formatter.to_dict(self.config, self.mode) | self.dynamic_config
+            )
         except ConnectApiError as e:
             logger.error(f"Task start failed, details: {e}")
             return
