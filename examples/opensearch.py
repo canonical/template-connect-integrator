@@ -19,9 +19,14 @@ class OpensearchConfigFormatter(BaseConfigFormatter):
     """Basic implementation for Aiven Opensearch Sink connector configuration."""
 
     # configurable options
-    topics = ConfigOption(json_key="topics", default="test", description="Topics to read data from.")
-    schema_ignore = ConfigOption(json_key="schema.ignore", default=True, description="Whether should include schema in records or not.")
-    index_name = ConfigOption(json_key="ignore.index_name", default="test")
+    topics = ConfigOption(
+        json_key="topics", default="test", description="Topics to read data from."
+    )
+    schema_ignore = ConfigOption(
+        json_key="schema.ignore",
+        default=True,
+        description="Whether should include schema in records or not.",
+    )
 
     # non-configurable options
     connector_class = ConfigOption(
@@ -32,6 +37,9 @@ class OpensearchConfigFormatter(BaseConfigFormatter):
     key_ignore = ConfigOption(json_key="key.ignore", default=True, configurable=False)
     tasks_max = ConfigOption(json_key="tasks.max", default=1, configurable=False)
     type_name = ConfigOption(json_key="type.name", default="kafka-connect", configurable=False)
+
+    # general charm config
+    index_name = ConfigOption(json_key="na", default="test", mode="none")
 
 
 class Integrator(BaseIntegrator):
@@ -47,6 +55,7 @@ class Integrator(BaseIntegrator):
     def __init__(self, /, charm, plugin_server_args=[], plugin_server_kwargs={}):
         super().__init__(charm, plugin_server_args, plugin_server_kwargs)
 
+        self.name = charm.app.name
         self.index_name = str(self.charm.config.get("index_name", "test"))
 
         self.database_requirer_data = OpenSearchRequiresData(
