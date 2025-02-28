@@ -1,6 +1,8 @@
+import json
 import re
 from dataclasses import dataclass
 
+import kafka
 import requests
 from ops.model import Unit
 from pytest_operator.plugin import OpsTest
@@ -70,3 +72,51 @@ def download_file(url: str, dst_path: str):
     with open(dst_path, mode="wb") as file:
         for chunk in response.iter_content(chunk_size=10 * 1024):
             file.write(chunk)
+
+
+async def assert_messages_produced(
+    ops_test: OpsTest, kafka_app: str, topic: str = "test", no_messages: int = 1
+):
+    """Asserts `no_messages` has been produced to `topic`."""
+    _, raw, _ = await ops_test.juju("secrets", "--format", "json")
+
+    secrets_json = json.loads(raw)
+
+    kafka_client_secrets = [
+        s
+        for s in secrets_json
+        if re.match(r"kafka-client\.[0-9]+\.user\.secret", secrets_json[s]["label"])
+    ]
+
+    if not kafka_client_secrets:
+        raise Exception("Can't access kafka client credentials.")
+
+    kafka_client_secret = kafka_client_secrets[0]
+
+    _, secret_raw, _ = await ops_test.juju(
+        "show-secret", "--reveal", "--format", "json", kafka_client_secret
+    )
+    secret_json = json.loads(secret_raw)
+
+    data = secret_json[kafka_client_secret]["content"]["Data"]
+
+    username = data["username"]
+    password = data["password"]
+    server = await get_unit_ipv4_address(ops_test, ops_test.model.applications[kafka_app].units[0])
+
+    consumer = kafka.KafkaConsumer(
+        topic,
+        bootstrap_servers=f"{server}:9092",
+        sasl_mechanism="SCRAM-SHA-512",
+        sasl_plain_username=username,
+        sasl_plain_password=password,
+        auto_offset_reset="earliest",
+        security_protocol="SASL_PLAINTEXT",
+        consumer_timeout_ms=5000,
+    )
+
+    messages = []
+    for msg in consumer:
+        messages.append(msg.value)
+
+    assert len(messages) == no_messages

@@ -100,6 +100,7 @@ pytest-operator = ">0.20"
 tenacity = ">=7.0"
 pure-sasl = ">=0.5"
 requests = ">2.25"
+kafka-python-ng = ">=2.0"
 
 # TODO: enable pytest-operator-cache when kafka-connect is released
 # pytest-operator-cache = { git = "https://github.com/canonical/data-platform-workflows", tag = "v24.0.5", subdirectory = "python/pytest_plugins/pytest_operator_cache" }
