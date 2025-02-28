@@ -58,6 +58,7 @@ jobs:
       matrix:
         tox-environments:
           - integration-mysql
+          - integration-opensearch
 
     name: ${{ matrix.tox-environments }}
     needs:

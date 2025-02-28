@@ -200,12 +200,12 @@ async def test_deploy_sink_app(ops_test: OpsTest, app_charm, tmp_path_factory):
 
 @pytest.mark.abort_on_fail
 async def test_activate_sink_integrator(ops_test: OpsTest):
-    """..."""
+
     await ops_test.model.add_relation(SINK_APP, MYSQL_APP)
     await ops_test.model.add_relation(SINK_APP, CONNECT_APP)
     async with ops_test.fast_forward(fast_interval="30s"):
         await ops_test.model.wait_for_idle(
-            apps=[SINK_APP, MYSQL_APP, KAFKA_APP], idle_period=30, timeout=600
+            apps=[SINK_APP, MYSQL_APP, CONNECT_APP], idle_period=30, timeout=600
         )
         await asyncio.sleep(120)
 
