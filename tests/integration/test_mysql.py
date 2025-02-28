@@ -161,7 +161,7 @@ async def test_relate_with_connect_starts_source_integrator(ops_test: OpsTest):
 
     logging.info("Sleeping...")
     async with ops_test.fast_forward(fast_interval="20s"):
-        await asyncio.sleep(120)
+        await asyncio.sleep(180)
 
     # test task is running
     assert ops_test.model.applications[SOURCE_APP].status == "active"
