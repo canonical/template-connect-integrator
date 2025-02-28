@@ -63,7 +63,6 @@ jobs:
     needs:
       - lint
       - unit-test
-      - build
     runs-on: ubuntu-22.04
     timeout-minutes: 240
     steps:
