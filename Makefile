@@ -14,8 +14,6 @@ build: clean lint
 
 	BUILD_DIRECTORY=$(BUILD_DIRECTORY) IMPL=$(IMPL) NAME=$(NAME) DATA_INTERFACE=$(DATA_INTERFACE) tox -e render
 
-	if [ "$(CI)" = "" ]; then cd $(BUILD_DIRECTORY); charmcraft pack; fi
-
 deploy: build
 	juju deploy $(BUILD_DIRECTORY)/bundle.zip
 
