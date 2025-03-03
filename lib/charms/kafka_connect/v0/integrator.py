@@ -413,6 +413,7 @@ class BaseIntegrator(ABC, Object):
     name: str
     formatter: type[BaseConfigFormatter]
     plugin_server: type[BasePluginServer]
+    mode: IntegratorMode
 
     CONFIG_SECRET_FIELD = "config"
     CONNECT_REL = "connect-client"
@@ -437,7 +438,7 @@ class BaseIntegrator(ABC, Object):
         self.server = self.plugin_server(*plugin_server_args, **plugin_server_kwargs)
         self.plugin_url = self.server.plugin_url
         self.config = charm.config
-        self.mode: IntegratorMode = cast(IntegratorMode, self.config["mode"])
+        self.mode: IntegratorMode = cast(IntegratorMode, self.config.get("mode", self.mode))
         self.helpers: _DataInterfacesHelpers = _DataInterfacesHelpers(self.charm)
 
         # init handlers

@@ -40,18 +40,13 @@ class S3ConfigFormatter(BaseConfigFormatter):
 
     # general charm config
     bucket = ConfigOption(json_key="na", default="test", mode="none")
-    mode = ConfigOption(
-        json_key="na",
-        default="sink",
-        configurable=False,
-        mode="none",
-    )
 
 
 class Integrator(BaseIntegrator):
     """Basic implementation for Kafka Connect S3 Sink Integrator."""
 
     name = "s3-sink-integrator"
+    mode = "sink"
     formatter = S3ConfigFormatter
     plugin_server = PluginServer
 
