@@ -5,6 +5,7 @@ import string
 from dataclasses import dataclass
 
 import kafka
+import kafka.errors
 import requests
 from kafka.admin import NewTopic
 from ops.model import Unit
@@ -166,7 +167,10 @@ async def produce_messages(
     admin_client = kafka.KafkaAdminClient(**config, client_id="test-admin")
 
     topic_list = [NewTopic(name=topic, num_partitions=10, replication_factor=1)]
-    admin_client.create_topics(new_topics=topic_list, validate_only=False)
+    try:
+        admin_client.create_topics(new_topics=topic_list, validate_only=False)
+    except kafka.errors.TopicAlreadyExistsError:
+        pass
     admin_client.close()
 
     producer = kafka.KafkaProducer(

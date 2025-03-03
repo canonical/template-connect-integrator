@@ -60,6 +60,7 @@ jobs:
           - integration-mysql
           - integration-opensearch
           - integration-postgresql
+          - integration-s3
 
     name: ${{ matrix.tox-environments }}
     needs:
