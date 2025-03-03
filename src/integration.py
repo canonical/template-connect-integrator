@@ -22,6 +22,7 @@ class Integrator(BaseIntegrator):
     """No-op implementation of BaseIntegrator."""
 
     name = "dummy-integrator"
+    mode = "source"
     formatter = DummyConfigFormatter
     plugin_server = PluginServer
 

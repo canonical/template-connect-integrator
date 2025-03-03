@@ -41,6 +41,9 @@ LIBAPI = 0
 LIBPATCH = 1
 
 
+YAML_TYPE_MAPPER = {str: "string", int: "int", bool: "boolean"}
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -174,8 +177,6 @@ class BaseConfigFormatter:
     Dynamic config would override static config if provided.
     """
 
-    YAML_TYPE_MAPPER = {str: "string", int: "int", bool: "boolean"}
-
     mode = ConfigOption(
         json_key="na",
         default="source",
@@ -232,7 +233,7 @@ class BaseConfigFormatter:
 
                 options[_attr] = {
                     "default": option.default,
-                    "type": cls.YAML_TYPE_MAPPER.get(type(option.default), "string"),
+                    "type": YAML_TYPE_MAPPER.get(type(option.default), "string"),
                 }
 
                 if option.description:
@@ -413,7 +414,7 @@ class BaseIntegrator(ABC, Object):
     name: str
     formatter: type[BaseConfigFormatter]
     plugin_server: type[BasePluginServer]
-    mode: IntegratorMode
+    mode: IntegratorMode = "source"
 
     CONFIG_SECRET_FIELD = "config"
     CONNECT_REL = "connect-client"
