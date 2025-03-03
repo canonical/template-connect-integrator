@@ -111,6 +111,32 @@ async def test_deploy_cluster(ops_test: OpsTest, kafka_connect_charm):
 
 
 @pytest.mark.abort_on_fail
+async def test_disable_disk_threshold_enabled(ops_test: OpsTest):
+    """Disables the `disk.threshold_enabled` config on Opensearch which could cause index creation blocked errors in CI."""
+    leader = ops_test.model.applications[OPENSEARCH_APP].units[0]
+
+    get_pass_action = await leader.run_action("get-password", mode="full", dryrun=False)
+    response = await get_pass_action.wait()
+    admin_pass = response.results.get("password")
+
+    os_ip = await get_unit_ipv4_address(ops_test, leader)
+
+    resp = requests.put(
+        f"https://{os_ip}:9200/_cluster/settings",
+        auth=HTTPBasicAuth("admin", admin_pass),
+        verify=False,
+        json={
+            "persistent": {
+                "cluster.routing.allocation.disk.threshold_enabled": "false",
+            }
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json().get("acknowledged", False)
+
+
+@pytest.mark.abort_on_fail
 async def test_produce_messages(ops_test: OpsTest):
     """Since Opensearch does not have a source connector yet, fills a Kafka topic with data."""
     await produce_messages(ops_test, KAFKA_APP, FIXTURE_PARAMS.db_name, FIXTURE_PARAMS.no_records)
