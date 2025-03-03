@@ -40,6 +40,12 @@ class S3ConfigFormatter(BaseConfigFormatter):
 
     # general charm config
     bucket = ConfigOption(json_key="na", default="test", mode="none")
+    mode = ConfigOption(
+        json_key="na",
+        default="sink",
+        configurable=False,
+        mode="none",
+    )
 
 
 class Integrator(BaseIntegrator):

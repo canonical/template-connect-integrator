@@ -14,17 +14,7 @@ from pathlib import Path
 from typing import cast
 
 import yaml
-from charms.kafka_connect.v0.integrator import BaseConfigFormatter, ConfigOption
-
-TYPE_MAPPER = {str: "string", int: "int", bool: "boolean"}
-
-DEFAULT_OPTIONS = {
-    "mode": {
-        "description": 'Integrator mode, either "source" or "sink"',
-        "type": "string",
-        "default": "source",
-    }
-}
+from charms.kafka_connect.v0.integrator import BaseConfigFormatter
 
 
 @dataclass
@@ -94,32 +84,10 @@ def render_config(output_path: Path, module: str = "integration") -> str | None:
 
     formatter = cast(BaseConfigFormatter, getattr(integration, formatters[0]))
 
-    config = {"options": dict(DEFAULT_OPTIONS)}
-    for _attr in dir(formatter):
-
-        if _attr.startswith("__"):
-            continue
-
-        attr = getattr(formatter, _attr)
-
-        if isinstance(attr, ConfigOption):
-            option = cast(ConfigOption, attr)
-
-            if not option.configurable:
-                continue
-
-            config["options"][_attr] = {
-                "default": option.default,
-                "type": TYPE_MAPPER.get(type(option.default), "string"),
-            }
-
-            if option.description:
-                config["options"][_attr]["description"] = option.description
-    
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
-    yaml.safe_dump(config, open(output_path / "config.yaml", "w"))
+    yaml.safe_dump(formatter.to_config_yaml(), open(output_path / "config.yaml", "w"))
 
     return integration.__file__
 

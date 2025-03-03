@@ -174,6 +174,15 @@ class BaseConfigFormatter:
     Dynamic config would override static config if provided.
     """
 
+    YAML_TYPE_MAPPER = {str: "string", int: "int", bool: "boolean"}
+
+    mode = ConfigOption(
+        json_key="na",
+        default="source",
+        description='Integrator mode, either "source" or "sink"',
+        mode="none",
+    )
+
     @classmethod
     def fields(cls) -> list[str]:
         """Returns a list of non-special class variables."""
@@ -201,6 +210,35 @@ class BaseConfigFormatter:
             ret[option.json_key] = option.default
 
         return ret
+
+    @classmethod
+    def to_config_yaml(cls) -> dict[str, Any]:
+        """Returns a dict compatible with charmcraft `config.yaml` format."""
+        config = {"options": {}}
+        options = config["options"]
+
+        for _attr in dir(cls):
+
+            if _attr.startswith("__"):
+                continue
+
+            attr = getattr(cls, _attr)
+
+            if isinstance(attr, ConfigOption):
+                option = cast(ConfigOption, attr)
+
+                if not option.configurable:
+                    continue
+
+                options[_attr] = {
+                    "default": option.default,
+                    "type": cls.YAML_TYPE_MAPPER.get(type(option.default), "string"),
+                }
+
+                if option.description:
+                    options[_attr]["description"] = option.description
+
+        return config
 
 
 class ConnectClient:

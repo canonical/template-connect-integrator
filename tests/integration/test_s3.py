@@ -64,6 +64,7 @@ def create_test_bucket(bucket: str):
     client.create_bucket(Bucket=bucket)
 
 
+@pytest.mark.abort_on_fail
 def test_prepare_s3_env():
     """Either deploy microceph or use the provided S3 endpoint via env vars."""
     access_key = os.environ.get(S3EnvKeys.ACCESS_KEY)
@@ -119,7 +120,7 @@ def test_prepare_s3_env():
     os.environ[S3EnvKeys.SECRET_KEY] = secret_key
     os.environ[S3EnvKeys.HOST] = f"http://{lxdbr_gateway}"
 
-    logger.info(" ".join([f"{k}={os.environ[k]}" for k in S3EnvKeys.ALL]))
+    logger.info(" ".join([f"{k}={os.environ.get(k)}" for k in S3EnvKeys.ALL]))
 
 
 @pytest.mark.abort_on_fail
@@ -202,7 +203,7 @@ async def test_deploy_sink_app(ops_test: OpsTest, app_charm, tmp_path_factory):
         app_charm,
         application_name=SINK_APP,
         resources={PLUGIN_RESOURCE_KEY: plugin_path},
-        config={"mode": "sink", "bucket": bucket, "topics": FIXTURE_PARAMS.db_name},
+        config={"bucket": bucket, "topics": FIXTURE_PARAMS.db_name},
     )
 
     async with ops_test.fast_forward(fast_interval="60s"):
