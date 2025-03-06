@@ -40,25 +40,7 @@ def parse_args() -> Settings:
         default="integration"
     )
 
-    args, var_args = parser.parse_known_args()
-
-    # if not bundle_args.template.is_file():
-    #     raise FileNotFoundError(f"No such file: {bundle_args.template}")
-
-    # bundle_variables = read_bundle_template(bundle_args.template)[1]
-
-    template_variables = ["year", "month"]
-
-    variable_parser = argparse.ArgumentParser()
-    for var in template_variables:
-        variable_parser.add_argument("--" + var, type=str)
-
-    # # Parse variable args and keep only the once that are not None, otherwise they will be passed
-    # # to the template and be considered as "defined", resulting in:
-    # # jinja2.exceptions.UndefinedError: 'None' has no attribute 'endswith'
-    variables = {
-        k: v for k, v in vars(variable_parser.parse_args(var_args)).items() if v is not None
-    }
+    args, _ = parser.parse_known_args()
 
     return Settings(output_path=args.output, module=args.impl)
 
