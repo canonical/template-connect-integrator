@@ -5,12 +5,12 @@
 """Utility script for generating charmcraft build files."""
 
 import argparse
-import inspect
 import importlib
 import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 from typing import cast
 
 import yaml
@@ -19,13 +19,25 @@ from charms.kafka_connect.v0.integrator import BaseConfigFormatter
 
 @dataclass
 class Settings:
+    """Object for storing settings passed via command line args."""
+
     output_path: Path
-    module: str = "integration"
+    impl: str = "mysql"
+
+
+IMPLEMENTATIONS = {
+    "mysql": "MySQLConfigFormatter",
+    "opensearch": "OpensearchConfigFormatter",
+    "postgresql": "PostgresConfigFormatter",
+    "s3": "S3ConfigFormatter",
+}
 
 
 def parse_args() -> Settings:
     """Parse CLI args."""
-    parser = argparse.ArgumentParser(description="Render config.yaml from `src/integration.py` args.")
+    parser = argparse.ArgumentParser(
+        description="Render config.yaml from `src/integration.py` args."
+    )
 
     parser.add_argument(
         "output",
@@ -37,45 +49,35 @@ def parse_args() -> Settings:
         "--impl",
         help="path to the module which implements BaseIntegrator & BaseConfigFormatter, defaults to integration.",
         type=str,
-        default="integration"
+        default="mysql",
     )
 
     args, _ = parser.parse_known_args()
 
-    return Settings(output_path=args.output, module=args.impl)
+    return Settings(output_path=args.output, impl=args.impl)
 
 
-def render_config(output_path: Path, module: str = "integration") -> str | None:
+def render_config(output_path: Path, module: ModuleType, klass: str) -> str | None:
     """Renders a charmcraft `config.yaml` file based on the implementation of `BaseConfigFormatter` provided in `module`."""
-    integration = importlib.import_module(module, package=None)
-
-    formatters = [
-        c
-        for c in dir(integration)
-        if inspect.isclass(getattr(integration, c))
-        and c != "BaseConfigFormatter"
-        and issubclass(getattr(integration, c), BaseConfigFormatter)
-    ]
-
-    if not formatters:
-        sys.exit(0)
-
-    if len(formatters) > 1:
-        print("Failed: more than one BaseConfigFormatter implementation found, exiting.")
-        sys.exit(2)
-
-    formatter = cast(BaseConfigFormatter, getattr(integration, formatters[0]))
+    formatter = cast(BaseConfigFormatter, getattr(module, klass))
 
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
     yaml.safe_dump(formatter.to_config_yaml(), open(output_path / "config.yaml", "w"))
 
-    return integration.__file__
-
 
 if __name__ == "__main__":
     settings = parse_args()
-    integration_module = render_config(output_path=settings.output_path, module=settings.module)
-    print(integration_module)
-    os.system(f"cp {integration_module} {settings.output_path}/src/integration.py")
+
+    if settings.impl not in IMPLEMENTATIONS:
+        sys.exit(f"Failed: unrecognized implementation {settings.impl}")
+
+    os.system(f"cp examples/{settings.impl}.py {settings.output_path}/src/integration.py")
+    module = importlib.import_module(f"examples.{settings.impl}", package=None)
+
+    render_config(
+        output_path=settings.output_path,
+        module=module,
+        klass=IMPLEMENTATIONS[settings.impl],
+    )
