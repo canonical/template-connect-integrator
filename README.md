@@ -6,7 +6,7 @@ To build and use this charm, the `connect-plugin` resource should be provided ei
 
 ## Build & Deploy Instructions
 
-Example implementations are provided in the `examples` folder. You could easily build the integrator charm using `make` tool by providing appropriate build aguments:
+Example implementations are provided in the `examples` folder. You could easily build the integrator charm using `make` tool by providing appropriate build arguments:
 
 - `NAME`: name of the integrator charm
 - `BUILD_DIRECTORY`: path to the directory where charmcraft build artefacts are going to be stored
