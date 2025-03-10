@@ -6,16 +6,23 @@ To build and use this charm, the `connect-plugin` resource should be provided ei
 
 ## Build & Deploy Instructions
 
-To use this template charm, you should provide an implementation of `BaseIntegrator` and `BaseConfigFormatter`. Some example implementations are provided in the `examples` folder.  Then, you could easily build the integrator charm using `make` tool:
+Example implementations are provided in the `examples` folder. You could easily build the integrator charm using `make` tool by providing appropriate build aguments:
+
+- `NAME`: name of the integrator charm
+- `BUILD_DIRECTORY`: path to the directory where charmcraft build artefacts are going to be stored
+- `IMPL`: the target implementation, provided in the `examples` folder. Currently, valid values are: `mysql`, `opensearch`, `postgresql`, `s3`. If you would like a new implementation, you should implement the `BaseIntegrator` and `BaseConfigFormatter` interfaces, inspired by the examples provided.
+- `DATA_INTERFACE`: type of the data_interface to use on the `data` relation, e.g. `mysql_client`, `kafka_client`, `s3`, etc.
+
+### Example
 
 ```bash
 make build \
     NAME=my-mysql-integrator \
     BUILD_DIRECTORY=build \
-    IMPL=examples.mysql \
+    IMPL=mysql \
     DATA_INTERFACE=mysql_client
 
-juju deploy build/*.charm --resource connect-plugin=/path/to/plugin.tar --config mode=[source|sink]
+juju deploy build/*.charm --resource connect-plugin=/path/to/plugin.tar --config mode=[source|sink] integrator
 ```
 
 ## Integration with Kafka Connect
@@ -27,5 +34,5 @@ juju deploy kafka-connect
 juju integrate kafka kafka-connect
 
 # Integrate kafka connect with the integrator
-juju integrate kafka-connect kafka-connect-integrator
+juju integrate kafka-connect integrator
 ```
