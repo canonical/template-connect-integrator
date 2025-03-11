@@ -10,17 +10,23 @@ import subprocess
 
 import boto3
 import pytest
+import requests
 from helpers import (
+    CONNECT_ADMIN_USER,
     CONNECT_APP,
+    CONNECT_REST_PORT,
     KAFKA_APP,
     KAFKA_CHANNEL,
     PLUGIN_RESOURCE_KEY,
     S3_CONNECTOR_LINK,
     DatabaseFixtureParams,
     download_file,
+    get_secret_data,
+    get_unit_ipv4_address,
     produce_messages,
 )
 from pytest_operator.plugin import OpsTest
+from requests.auth import HTTPBasicAuth
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_fixed
 
 logger = logging.getLogger(__name__)
@@ -244,3 +250,52 @@ async def test_e2e_scenario(ops_test: OpsTest):
     for obj in objects:
         # objects are named {topic}-##.gz
         assert FIXTURE_PARAMS.db_name in obj["Key"]
+
+
+async def assert_connector_statuses(ops_test: OpsTest, **kwargs):
+    data = await get_secret_data(ops_test, r"worker.kafka-connect.app")
+
+    connect_pass = data["admin-password"]
+
+    connect_unit = ops_test.model.applications[CONNECT_APP].units[0]
+    connect_ip = await get_unit_ipv4_address(ops_test, connect_unit)
+
+    resp = requests.get(
+        f"http://{connect_ip}:{CONNECT_REST_PORT}/connectors?expand=status",
+        auth=HTTPBasicAuth(CONNECT_ADMIN_USER, connect_pass),
+        verify=False,
+    )
+    print(resp.json())
+
+    connector_states = [i["status"]["connector"]["state"] for i in resp.json().values()]
+
+    for state in ("RUNNING", "FAILED", "STOPPED"):
+        if state.lower() in kwargs:
+            count = kwargs[state.lower()]
+            logging.info(f'Assert {count} connector(s) are in "{state}" state.')
+            assert len([i for i in connector_states if i == state]) == count
+
+
+@pytest.mark.abort_on_fail
+async def test_relation_broken(ops_test: OpsTest):
+    await ops_test.juju("remove-relation", CONNECT_APP, SINK_APP)
+
+    async with ops_test.fast_forward(fast_interval="30s"):
+        await ops_test.model.wait_for_idle(
+            apps=[SINK_APP, CONNECT_APP], idle_period=60, timeout=600
+        )
+
+    # since connector plugin is removed, we expect the connector to be in failed state.
+    # we'll make sure that `relation-departed` has actually stopped the connector next.
+    await assert_connector_statuses(ops_test, running=0, failed=1)
+
+    # relate again with connect, new connector should show up in RUNNING state,
+    # while previous connector(s) should be in STOPPED state.
+    await ops_test.model.add_relation(SINK_APP, CONNECT_APP)
+    async with ops_test.fast_forward(fast_interval="30s"):
+        await ops_test.model.wait_for_idle(
+            apps=[SINK_APP, CONNECT_APP, S3_PROVIDER_APP], idle_period=30, timeout=600
+        )
+        await asyncio.sleep(180)
+
+    await assert_connector_statuses(ops_test, running=1, stopped=1)

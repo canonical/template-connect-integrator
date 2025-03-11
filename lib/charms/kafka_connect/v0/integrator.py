@@ -24,7 +24,7 @@ from charms.data_platform_libs.v0.data_interfaces import (
     KafkaConnectRequirerEventHandlers,
     RequirerData,
 )
-from ops.charm import CharmBase, RelationBrokenEvent
+from ops.charm import CharmBase, RelationDepartedEvent
 from ops.framework import Object
 from ops.model import ConfigData, Relation
 from pydantic import BaseModel
@@ -301,7 +301,7 @@ class ConnectClient:
 
         return response
 
-    def start_task(self, task_config: dict) -> None:
+    def start_connector(self, task_config: dict) -> None:
         """Starts a connector task by posting `task_config` to the `connectors` endpoint.
 
         Raises:
@@ -314,13 +314,13 @@ class ConnectClient:
             return
 
         if response.status_code == 409 and "already exists" in response.json().get("message", ""):
-            logger.info("Task has already been submitted, skipping...")
+            logger.info("Connector has already been submitted, skipping...")
             return
 
         logger.error(response.content)
-        raise ConnectApiError(f"Unable to start the task, details: {response.content}")
+        raise ConnectApiError(f"Unable to start the connector, details: {response.content}")
 
-    def stop_task(self) -> None:
+    def stop_connector(self) -> None:
         """Stops a connector by making a request to connectors/CONNECTOR-NAME/stop endpoint.
 
         Raises:
@@ -329,7 +329,7 @@ class ConnectClient:
         response = self.request(method="PUT", api=f"connectors/{self.connector_name}/stop")
 
         if response.status_code != 204:
-            raise ConnectApiError(f"Unable to stop the task, details: {response.content}")
+            raise ConnectApiError(f"Unable to stop the connector, details: {response.content}")
 
     def task_status(self) -> TaskStatus:
         """Returns the connector/task status."""
@@ -452,13 +452,18 @@ class BaseIntegrator(ABC, Object):
             self.requirer.on.integration_endpoints_changed, self._on_integration_endpoints_changed
         )
         self.framework.observe(
-            self.charm.on[self.rel_name].relation_broken, self._on_relation_broken
+            self.charm.on[self.rel_name].relation_departed, self._on_relation_departed
         )
 
     @property
     def _peer_relation(self) -> Optional[Relation]:
         """Peer `Relation` object."""
         return self.model.get_relation(self.PEER_REL)
+    
+    @property
+    def _connect_client_relation(self) -> Optional[Relation]:
+        """Peer `Relation` object."""
+        return self.model.get_relation(self.CONNECT_REL)
 
     @cached_property
     def _requirer_interface(self) -> KafkaConnectRequirerData:
@@ -486,9 +491,17 @@ class BaseIntegrator(ABC, Object):
     @cached_property
     def _client(self) -> ConnectClient:
         """Kafka Connect client for handling REST API calls."""
-        return ConnectClient(self._client_context, self.name)
+        return ConnectClient(self._client_context, self.connector_unique_name)
 
     # Public properties
+
+    @property
+    def connector_unique_name(self) -> str:
+        if not self._connect_client_relation:
+            return ""
+        
+        relation_id = self._connect_client_relation.id
+        return f"relation-{relation_id}_{self.model.uuid.replace('-', '')}"
 
     @property
     def started(self) -> bool:
@@ -544,7 +557,7 @@ class BaseIntegrator(ABC, Object):
             self._peer_relation.id, data={self.CONFIG_SECRET_FIELD: json.dumps(updated_config)}
         )
 
-    def start_task(self) -> None:
+    def start_connector(self) -> None:
         """Starts the connector task."""
         if self.started:
             logger.info("Connector task has already started")
@@ -553,7 +566,7 @@ class BaseIntegrator(ABC, Object):
         self.setup()
 
         try:
-            self._client.start_task(
+            self._client.start_connector(
                 self.formatter.to_dict(self.config, self.mode) | self.dynamic_config
             )
         except ConnectApiError as e:
@@ -562,10 +575,10 @@ class BaseIntegrator(ABC, Object):
 
         self.started = True
 
-    def stop_task(self) -> None:
+    def stop_connector(self) -> None:
         """Stops the connector task."""
         try:
-            self._client.stop_task()
+            self._client.stop_connector()
         except ConnectApiError as e:
             logger.error(f"Task stop failed, details: {e}")
             return
@@ -609,7 +622,7 @@ class BaseIntegrator(ABC, Object):
             return
 
         logger.info(f"Starting {self.name} task...")
-        self.start_task()
+        self.start_connector()
 
         if not self.started:
             event.defer()
@@ -618,6 +631,6 @@ class BaseIntegrator(ABC, Object):
         """Handler for `integration_endpoints_changed` event."""
         pass
 
-    def _on_relation_broken(self, _: RelationBrokenEvent) -> None:
-        """Handler for `relation-broken` event."""
-        self.stop_task()
+    def _on_relation_departed(self, _: RelationDepartedEvent) -> None:
+        """Handler for `relation-departed` event."""
+        self.stop_connector()

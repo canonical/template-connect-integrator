@@ -3,7 +3,7 @@
 # See LICENSE file for licensing details.
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 import yaml
@@ -50,3 +50,18 @@ def patched_server(request: pytest.FixtureRequest):
         server.return_value = instance
         server.healthy = health
         yield server
+
+
+@pytest.fixture()
+def patched_connect_client(request: pytest.FixtureRequest):
+    with patch("integration.Integrator._client") as client:
+        instance = MagicMock()
+
+        client.return_value = instance
+        yield client
+
+
+@pytest.fixture(scope="module")
+def integrator_has_started(request: pytest.FixtureRequest):
+    with patch("integration.Integrator.started", PropertyMock(return_value=True)) as ready:
+        yield ready

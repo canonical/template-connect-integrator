@@ -12,6 +12,8 @@ from ops.model import Unit
 from pytest_operator.plugin import OpsTest
 
 CONNECT_APP = "kafka-connect"
+CONNECT_ADMIN_USER = "admin"
+CONNECT_REST_PORT = 8083
 KAFKA_APP = "kafka"
 KAFKA_CHANNEL = "3/edge"
 MYSQL_APP = "mysql"
@@ -89,7 +91,7 @@ async def get_secret_data(ops_test: OpsTest, label_pattern: str) -> dict:
     ]
 
     if not matching_secrets:
-        raise Exception(f"CNo secrets matching {label_pattern} found!")
+        raise Exception(f"No secrets matching {label_pattern} found!")
 
     secret_id = matching_secrets[0]
 
