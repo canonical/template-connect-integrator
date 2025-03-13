@@ -10,7 +10,7 @@ import pytest
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.testing import Context, Relation, State
 from requests.exceptions import ConnectionError
-from src.literals import CONNECT_REL, REST_PORT
+from src.literals import CONNECT_REL, CONNECTION_ERROR_MSG, REST_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,8 @@ DATA_REL = "data"
 def build_mock_request(
     status_code: int = 200, task_status: str = "UNASSIGNED", connection_error: bool = False
 ):
+    """Builder function for request/response mock objects on Kafka Connect REST API."""
+
     def _mock_request(*args, **kwargs):
         if connection_error:
             raise ConnectionError()
@@ -165,7 +167,7 @@ def test_collect_status(
     # Then
     assert isinstance(state_out.unit_status, ActiveStatus)
     if with_connection_error:
-        assert "error communicating with Kafka Connect" in state_out.unit_status.message
+        assert CONNECTION_ERROR_MSG in state_out.unit_status.message
         return
 
     if status_code == 200:

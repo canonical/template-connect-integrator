@@ -462,7 +462,7 @@ class BaseIntegrator(ABC, Object):
     
     @property
     def _connect_client_relation(self) -> Optional[Relation]:
-        """Peer `Relation` object."""
+        """connect-client `Relation` object."""
         return self.model.get_relation(self.CONNECT_REL)
 
     @cached_property
@@ -497,6 +497,7 @@ class BaseIntegrator(ABC, Object):
 
     @property
     def connector_unique_name(self) -> str:
+        """Returns connectors' unique name used on the REST interface."""
         if not self._connect_client_relation:
             return ""
         
@@ -570,7 +571,7 @@ class BaseIntegrator(ABC, Object):
                 self.formatter.to_dict(self.config, self.mode) | self.dynamic_config
             )
         except ConnectApiError as e:
-            logger.error(f"Task start failed, details: {e}")
+            logger.error(f"Unable to start the connector, details: {e}")
             return
 
         self.started = True
@@ -580,7 +581,7 @@ class BaseIntegrator(ABC, Object):
         try:
             self._client.stop_connector()
         except ConnectApiError as e:
-            logger.error(f"Task stop failed, details: {e}")
+            logger.error(f"Unable to stop the connector, details: {e}")
             return
 
         self.teardown()

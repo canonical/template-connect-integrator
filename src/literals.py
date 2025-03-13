@@ -29,3 +29,5 @@ GROUP = "root"
 
 REST_PORT = 8080
 PLUGIN_RESOURCE_KEY = "connect-plugin"
+
+CONNECTION_ERROR_MSG = "error communicating with Kafka Connect, check logs."

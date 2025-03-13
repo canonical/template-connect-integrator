@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 import re
 import string
@@ -10,6 +11,7 @@ import requests
 from kafka.admin import NewTopic
 from ops.model import Unit
 from pytest_operator.plugin import OpsTest
+from requests.auth import HTTPBasicAuth
 
 CONNECT_APP = "kafka-connect"
 CONNECT_ADMIN_USER = "admin"
@@ -32,6 +34,9 @@ JDBC_SINK_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSinkConnector"
 OPENSEARCH_CONNECTOR_LINK = "https://github.com/Aiven-Open/opensearch-connector-for-apache-kafka/releases/download/v3.1.1/opensearch-connector-for-apache-kafka-3.1.1.tar"
 S3_CONNECTOR_LINK = "https://github.com/Aiven-Open/cloud-storage-connectors-for-apache-kafka/releases/download/v3.1.0/s3-sink-connector-for-apache-kafka-3.1.0.tar"
 S3_CONNECTOR_CLASS = "io.aiven.kafka.connect.s3.AivenKafkaConnectS3SinkConnector"
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -182,3 +187,27 @@ async def produce_messages(
 
     for i in range(1, no_messages + 1):
         producer.send(topic, generate_random_message_with_schema(i))
+
+
+async def assert_connector_statuses(ops_test: OpsTest, **kwargs):
+    data = await get_secret_data(ops_test, r"worker.kafka-connect.app")
+
+    connect_pass = data["admin-password"]
+
+    connect_unit = ops_test.model.applications[CONNECT_APP].units[0]
+    connect_ip = await get_unit_ipv4_address(ops_test, connect_unit)
+
+    resp = requests.get(
+        f"http://{connect_ip}:{CONNECT_REST_PORT}/connectors?expand=status",
+        auth=HTTPBasicAuth(CONNECT_ADMIN_USER, connect_pass),
+        verify=False,
+    )
+    print(resp.json())
+
+    connector_states = [i["status"]["connector"]["state"] for i in resp.json().values()]
+
+    for state in ("RUNNING", "FAILED", "STOPPED"):
+        if state.lower() in kwargs:
+            count = kwargs[state.lower()]
+            logging.info(f'Assert {count} connector(s) are in "{state}" state.')
+            assert len([i for i in connector_states if i == state]) == count
