@@ -30,6 +30,7 @@ IMPLEMENTATIONS = {
     "opensearch": "OpensearchConfigFormatter",
     "postgresql": "PostgresConfigFormatter",
     "s3": "S3ConfigFormatter",
+    "mirrormaker": "MirrormakerConfigFormatter"
 }
 
 
