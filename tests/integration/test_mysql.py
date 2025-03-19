@@ -140,10 +140,11 @@ async def test_relate_with_connect_starts_source_integrator(ops_test: OpsTest, s
 
     logging.info("Sleeping...")
     async with ops_test.fast_forward(fast_interval="20s"):
-        await asyncio.sleep(180)
+        await ops_test.model.wait_for_idle(
+            apps=[SOURCE_APP, CONNECT_APP], idle_period=60, timeout=600, status="active"
+        )
 
     # test task is running
-    assert ops_test.model.applications[SOURCE_APP].status == "active"
     assert "RUNNING" in ops_test.model.applications[SOURCE_APP].status_message
 
 
@@ -184,11 +185,10 @@ async def test_activate_sink_integrator(ops_test: OpsTest):
     await ops_test.model.add_relation(SINK_APP, CONNECT_APP)
     async with ops_test.fast_forward(fast_interval="30s"):
         await ops_test.model.wait_for_idle(
-            apps=[SINK_APP, MYSQL_APP, CONNECT_APP], idle_period=30, timeout=600
+            apps=[SINK_APP, MYSQL_APP, CONNECT_APP], idle_period=30, timeout=600, status="active"
         )
-        await asyncio.sleep(120)
+        await asyncio.sleep(60)
 
-    assert ops_test.model.applications[SINK_APP].status == "active"
     assert "RUNNING" in ops_test.model.applications[SINK_APP].status_message
 
 

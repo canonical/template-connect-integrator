@@ -202,11 +202,13 @@ async def test_activate_sink_integrator(ops_test: OpsTest):
     await ops_test.model.add_relation(SINK_APP, CONNECT_APP)
     async with ops_test.fast_forward(fast_interval="30s"):
         await ops_test.model.wait_for_idle(
-            apps=[SINK_APP, CONNECT_APP, S3_PROVIDER_APP], idle_period=30, timeout=600
+            apps=[SINK_APP, CONNECT_APP, S3_PROVIDER_APP],
+            idle_period=60,
+            timeout=600,
+            status="active",
         )
-        await asyncio.sleep(180)
+        await asyncio.sleep(60)
 
-    assert ops_test.model.applications[SINK_APP].status == "active"
     assert "RUNNING" in ops_test.model.applications[SINK_APP].status_message
 
 

@@ -102,6 +102,7 @@ async def deploy_postgresql(ops_test: OpsTest, substrate) -> None:
 async def kafka_dns_resolver(ops_test: OpsTest, substrate, monkeypatch):
     """Fixture which patches DNS lookup for `kafka` client library so that it works properly in K8s environment."""
     if substrate == "vm":
+        yield
         return
 
     records = {}
