@@ -123,7 +123,7 @@ class IntegratorCharm(CharmBase):
         except Exception as e:
             logger.error(e)
             event.add_status(
-                ActiveStatus("Task Status: error communicating with Kafka Connect, check logs.")
+                BlockedStatus("Task Status: error communicating with Kafka Connect, check logs.")
             )
 
 
