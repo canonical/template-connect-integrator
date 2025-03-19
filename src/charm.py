@@ -6,6 +6,7 @@
 
 import logging
 
+from charms.data_platform_libs.v0.data_interfaces import PLUGIN_URL_NOT_REQUIRED
 from ops.charm import CharmBase, CollectStatusEvent, StartEvent, UpdateStatusEvent
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, ModelError
@@ -64,6 +65,10 @@ class IntegratorCharm(CharmBase):
 
     def _on_config_changed(self, _) -> None:
         """Handler for `config-changed` event."""
+        # NOTE: When publishing MirrorMaker integrator to CH, ensure to publish with an empty.tar so as not to break here
+        if self.integrator.server.plugin_url == PLUGIN_URL_NOT_REQUIRED:
+            return
+
         resource_path = None
         try:
             resource_path = self.model.resources.fetch(PLUGIN_RESOURCE_KEY)

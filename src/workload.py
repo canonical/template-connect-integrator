@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Mapping
 
 import requests
+from charms.data_platform_libs.v0.data_interfaces import PLUGIN_URL_NOT_REQUIRED
 from charms.kafka_connect.v0.integrator import BasePluginServer
 from charms.operator_libs_linux.v1.systemd import (
     daemon_reload,
@@ -30,6 +31,30 @@ from typing_extensions import override
 from literals import GROUP, REST_PORT, SERVICE_NAME, SERVICE_PATH, USER
 
 logger = logging.getLogger(__name__)
+
+
+class NotRequiredPluginServer(BasePluginServer):
+    """An implementation for when plugins are not required to be served."""
+
+    def __init__(self, *args, **kwargs):
+        self.plugin_url = PLUGIN_URL_NOT_REQUIRED
+
+    @override
+    def start(self) -> None:
+        logger.info("Plugin server not required - skipping start")
+
+    @override
+    def stop(self) -> None:
+        logger.info("Plugin server not required - skipping stop")
+
+    @override
+    def configure(self) -> None:
+        logger.info("Plugin server not required - skipping configure")
+
+    @override
+    def health_check(self) -> bool:
+        logger.info("Plugin server not required - skipping health check")
+        return True
 
 
 class PluginServer(BasePluginServer):
