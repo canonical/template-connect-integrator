@@ -13,7 +13,6 @@ import pytest
 from helpers import (
     CONNECT_APP,
     KAFKA_APP,
-    KAFKA_CHANNEL,
     PLUGIN_RESOURCE_KEY,
     S3_CONNECTOR_LINK,
     DatabaseFixtureParams,
@@ -125,37 +124,21 @@ def test_prepare_s3_env():
 
 @pytest.mark.abort_on_fail
 @pytest.mark.skip_if_deployed
-async def test_deploy_cluster(ops_test: OpsTest, kafka_connect_charm):
+async def test_deploy_cluster(ops_test: OpsTest, deploy_kafka, deploy_kafka_connect):
     """Deploys kafka-connect charm along kafka (in KRaft mode) and s3-integrator."""
     os.environ[S3EnvKeys.BUCKET] = os.environ.get(S3EnvKeys.BUCKET) or DEFAULT_BUCKET
     create_test_bucket(os.environ[S3EnvKeys.BUCKET])
 
-    await asyncio.gather(
-        ops_test.model.deploy(
-            kafka_connect_charm,
-            application_name=CONNECT_APP,
-            num_units=1,
-            series="jammy",
-        ),
-        ops_test.model.deploy(
-            KAFKA_APP,
-            channel=KAFKA_CHANNEL,
-            application_name=KAFKA_APP,
-            num_units=1,
-            series="jammy",
-            config={"roles": "broker,controller"},
-        ),
-        ops_test.model.deploy(
-            S3_PROVIDER_CHARM,
-            application_name=S3_PROVIDER_APP,
-            num_units=1,
-            series="jammy",
-            config={
-                "endpoint": os.environ[S3EnvKeys.HOST],
-                "bucket": os.environ[S3EnvKeys.BUCKET],
-                "region": os.environ.get(S3EnvKeys.REGION) or "us-east-1",
-            },
-        ),
+    await ops_test.model.deploy(
+        S3_PROVIDER_CHARM,
+        application_name=S3_PROVIDER_APP,
+        num_units=1,
+        series="jammy",
+        config={
+            "endpoint": os.environ[S3EnvKeys.HOST],
+            "bucket": os.environ[S3EnvKeys.BUCKET],
+            "region": os.environ.get(S3EnvKeys.REGION) or "us-east-1",
+        },
     )
 
     await ops_test.model.add_relation(CONNECT_APP, KAFKA_APP)
@@ -179,7 +162,7 @@ async def test_deploy_cluster(ops_test: OpsTest, kafka_connect_charm):
 
 
 @pytest.mark.abort_on_fail
-async def test_produce_messages(ops_test: OpsTest):
+async def test_produce_messages(ops_test: OpsTest, kafka_dns_resolver):
     """Since S3 does not have a source connector yet, fills a Kafka topic with data."""
     await produce_messages(ops_test, KAFKA_APP, FIXTURE_PARAMS.db_name, FIXTURE_PARAMS.no_records)
 
@@ -200,9 +183,9 @@ async def test_deploy_sink_app(ops_test: OpsTest, app_charm, tmp_path_factory):
     bucket = os.environ[S3EnvKeys.BUCKET]
 
     await ops_test.model.deploy(
-        app_charm,
+        app_charm.charm,
         application_name=SINK_APP,
-        resources={PLUGIN_RESOURCE_KEY: plugin_path},
+        resources={PLUGIN_RESOURCE_KEY: plugin_path, **app_charm.resources},
         config={"bucket": bucket, "topics": FIXTURE_PARAMS.db_name},
     )
 

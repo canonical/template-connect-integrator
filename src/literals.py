@@ -16,6 +16,7 @@ SUBSTRATE = "vm"
 try:
     METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
     CHARM_KEY = METADATA["name"]
+    SUBSTRATE = "k8s" if "k8s-api" in METADATA.get("assumes", []) else "vm"
 except FileNotFoundError:
     CHARM_KEY = "template-integrator-charm"
 

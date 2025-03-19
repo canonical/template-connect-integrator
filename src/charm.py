@@ -5,9 +5,16 @@
 """Apache Kafka Connect Integrator Charmed Operator."""
 
 import logging
+from typing import cast
 
 from charms.data_platform_libs.v0.data_interfaces import PLUGIN_URL_NOT_REQUIRED
-from ops.charm import CharmBase, CollectStatusEvent, StartEvent, UpdateStatusEvent
+from ops.charm import (
+    CharmBase,
+    CollectStatusEvent,
+    ConfigChangedEvent,
+    StartEvent,
+    UpdateStatusEvent,
+)
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, ModelError
 
@@ -19,6 +26,7 @@ from literals import (
     SUBSTRATE,
 )
 from models import Context
+from workload import BaseWorkload
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +46,27 @@ class IntegratorCharm(CharmBase):
         self.framework.observe(self.on.collect_unit_status, self._on_collect_status)
         self.framework.observe(self.on.collect_app_status, self._on_collect_status)
 
+        _plugin_server_args = (
+            [self.unit.get_container("plugin-server")] if SUBSTRATE == "k8s" else []
+        )
+
         self.integrator = Integrator(
             self,
+            plugin_server_args=_plugin_server_args,
             plugin_server_kwargs={
                 "charm_dir": self.charm_dir,
                 "base_address": self.context.unit.internal_address,
                 "port": REST_PORT,
             },
         )
+        self.workload = cast(BaseWorkload, self.integrator.server)
 
-    def _on_start(self, _: StartEvent) -> None:
+    def _on_start(self, event: StartEvent) -> None:
         """Handler for `start` event."""
+        if not self.workload.ready:
+            event.defer()
+            return
+
         if self.integrator.server.health_check():
             return
 
@@ -63,8 +81,12 @@ class IntegratorCharm(CharmBase):
 
         self.unit.set_ports(REST_PORT)
 
-    def _on_config_changed(self, _) -> None:
+    def _on_config_changed(self, event: ConfigChangedEvent) -> None:
         """Handler for `config-changed` event."""
+        if not self.workload.ready:
+            event.defer()
+            return
+
         # NOTE: When publishing MirrorMaker integrator to CH, ensure to publish with an empty.tar so as not to break here
         if self.integrator.server.plugin_url == PLUGIN_URL_NOT_REQUIRED:
             return
@@ -72,9 +94,7 @@ class IntegratorCharm(CharmBase):
         resource_path = None
         try:
             resource_path = self.model.resources.fetch(PLUGIN_RESOURCE_KEY)
-            self.integrator.server.load_plugin(  # pyright: ignore[reportAttributeAccessIssue]
-                resource_path
-            )
+            self.workload.load_plugin(f"{resource_path}")
         except RuntimeError as e:
             logger.error(f"Resource {PLUGIN_RESOURCE_KEY} not defined in the charm build.")
             raise e

@@ -12,8 +12,13 @@ website:
   - https://github.com/canonical/template-connect-integrator
 maintainers:
   - Canonical Data Platform <data-platform@lists.launchpad.net>
+{%- if substrate == "vm" %}
 series:
   - jammy
+{%- else %}
+assumes:
+  - k8s-api
+{%- endif %}
 
 peers:
   peer:
@@ -37,3 +42,13 @@ resources:
       Apache Kafka Connect connector plugin, which will be served by this integrator through a REST endpoint.
       The plugin should be packed into a TAR archive, including all required Java libs and the connector implementation.
       The archive should not contain any libraries provided by the Apache Kafka Connect runtime.
+{%- if substrate == "k8s" %}
+  base-image:
+    type: oci-image
+    description: Ubuntu Python OCI Image
+    upstream-source: ubuntu/python:3.12-24.04_stable
+
+containers:
+  plugin-server:
+    resource: base-image
+{%- endif %}

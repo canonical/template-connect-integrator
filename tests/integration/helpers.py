@@ -1,6 +1,7 @@
 import json
 import random
 import re
+import socket
 import string
 from dataclasses import dataclass
 
@@ -11,7 +12,11 @@ from kafka.admin import NewTopic
 from ops.model import Unit
 from pytest_operator.plugin import OpsTest
 
+K8S_IMAGE = "ubuntu/python:3.12-24.04_stable"
 CONNECT_APP = "kafka-connect"
+CONNECT_CHANNEL = "latest/edge"
+CONNECT_ADMIN_USER = "admin"
+CONNECT_REST_PORT = 8083
 KAFKA_APP = "kafka"
 KAFKA_CHANNEL = "3/edge"
 MYSQL_APP = "mysql"
@@ -50,11 +55,17 @@ class DatabaseFixtureParams:
 
 
 async def run_command_on_unit(
-    ops_test: OpsTest, unit: Unit, command: str | list[str]
+    ops_test: OpsTest, unit: Unit, command: str | list[str], container: str | None = None
 ) -> CommandResult:
     """Runs a command on a given unit and returns the result."""
     command_args = command.split() if isinstance(command, str) else command
-    return_code, stdout, stderr = await ops_test.juju("ssh", f"{unit.name}", *command_args)
+
+    if not container:
+        return_code, stdout, stderr = await ops_test.juju("ssh", f"{unit.name}", *command_args)
+    else:
+        return_code, stdout, stderr = await ops_test.juju(
+            "ssh", "--container", container, f"{unit.name}", *command_args
+        )
 
     return CommandResult(return_code=return_code, stdout=stdout, stderr=stderr)
 
@@ -144,6 +155,14 @@ def generate_random_message_with_schema(msg_id: int) -> dict:
         },
         "payload": {"id": msg_id, "title": random_title, "likes": random_int},
     }
+
+
+def patched_dns_lookup(host, port, afi, records: dict = {}):
+    """Patched version of `kafka.conn.dns_lookup` which could take extra DNS records, suitable for K8s environments."""
+    if host not in records:
+        return socket.getaddrinfo(host, port, afi, socket.SOCK_STREAM)
+
+    return socket.getaddrinfo(records[host], port, afi, socket.SOCK_STREAM)
 
 
 async def produce_messages(
