@@ -62,19 +62,13 @@ def config_sysctl_params():
 
 @pytest.mark.abort_on_fail
 @pytest.mark.skip_if_deployed
-async def test_deploy_cluster(ops_test: OpsTest, kafka_connect_charm):
+async def test_deploy_cluster(ops_test: OpsTest, deploy_kafka_connect):
     """Deploys kafka-connect charm along kafka (in KRaft mode) and Opensearch."""
     if "CI" in os.environ:
         config_sysctl_params()
 
     await ops_test.model.set_config(MODEL_CONFIG)
     await asyncio.gather(
-        ops_test.model.deploy(
-            kafka_connect_charm,
-            application_name=CONNECT_APP,
-            num_units=1,
-            series="jammy",
-        ),
         ops_test.model.deploy(
             KAFKA_APP,
             channel=KAFKA_CHANNEL,
@@ -156,7 +150,7 @@ async def test_deploy_sink_app(ops_test: OpsTest, app_charm, tmp_path_factory):
     logging.info("Download finished successfully.")
 
     await ops_test.model.deploy(
-        app_charm,
+        app_charm.charm,
         application_name=SINK_APP,
         resources={PLUGIN_RESOURCE_KEY: plugin_path},
         config={"mode": "sink", "index_name": INDEX, "topics": INDEX},
