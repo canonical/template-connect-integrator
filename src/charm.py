@@ -66,21 +66,21 @@ class IntegratorCharm(CharmBase):
     def _on_config_changed(self, _) -> None:
         """Handler for `config-changed` event."""
         # NOTE: When publishing MirrorMaker integrator to CH, ensure to publish with an empty.tar so as not to break here
-        if self.integrator.server.plugin_url != PLUGIN_URL_NOT_REQUIRED:
-            resource_path = None
-            try:
-                resource_path = self.model.resources.fetch(PLUGIN_RESOURCE_KEY)
-                self.integrator.server.load_plugin(  # pyright: ignore[reportAttributeAccessIssue]
-                    resource_path
-                )
-            except RuntimeError as e:
-                logger.error(f"Resource {PLUGIN_RESOURCE_KEY} not defined in the charm build.")
-                raise e
-            except (NameError, ModelError) as e:
-                logger.error(
-                    f"Resource {PLUGIN_RESOURCE_KEY} not found or could not be downloaded."
-                )
-                raise e
+        if self.integrator.server.plugin_url == PLUGIN_URL_NOT_REQUIRED:
+            return
+
+        resource_path = None
+        try:
+            resource_path = self.model.resources.fetch(PLUGIN_RESOURCE_KEY)
+            self.integrator.server.load_plugin(  # pyright: ignore[reportAttributeAccessIssue]
+                resource_path
+            )
+        except RuntimeError as e:
+            logger.error(f"Resource {PLUGIN_RESOURCE_KEY} not defined in the charm build.")
+            raise e
+        except (NameError, ModelError) as e:
+            logger.error(f"Resource {PLUGIN_RESOURCE_KEY} not found or could not be downloaded.")
+            raise e
 
         self.integrator.server.configure()
 
