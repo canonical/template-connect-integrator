@@ -29,10 +29,19 @@ requires:
     interface: connect_client
     optional: true
     limit: 1
+{% if data_interface != 'kafka_client' %}
   data:
     interface: {{ data_interface }}
     optional: true
     limit: 1
+{% else %}
+  source:
+    interface: {{ data_interface }}
+    limit: 1
+  target:
+    interface: {{ data_interface }}
+    limit: 1
+{% endif %}
 
 resources:
   connect-plugin:
