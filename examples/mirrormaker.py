@@ -54,6 +54,7 @@ class MirrormakerConfigFormatter(BaseConfigFormatter):
         description="Whether to prefix the replicated topics with the alias of the source cluster or not.",
         mode="none",
     )
+    topic_name = ConfigOption(json_key="na", default="test_topic", mode="none")
 
 
 class Integrator(BaseIntegrator):
@@ -71,11 +72,12 @@ class Integrator(BaseIntegrator):
         super().__init__(charm, plugin_server_args, plugin_server_kwargs)
         self.name = charm.app.name
         self.prefix_topics = bool(self.charm.config.get("prefix_topics", False))
+        self.topic_name = str(self.charm.config.get("topic_name", "test_topic"))
 
         self.source_requirer_data = KafkaRequirerData(
             model=self.model,
             relation_name=self.SOURCE_REL,
-            topic=self.db_name,
+            topic=self.topic_name,
             extra_user_roles="admin",
         )
         self.source = KafkaRequirerEventHandlers(self.charm, self.source_requirer_data)
@@ -83,7 +85,7 @@ class Integrator(BaseIntegrator):
         self.target_requirer_data = KafkaRequirerData(
             model=self.model,
             relation_name=self.TARGET_REL,
-            topic=self.db_name,
+            topic=self.topic_name,
             extra_user_roles="admin",
         )
         self.target = KafkaRequirerEventHandlers(self.charm, self.target_requirer_data)
@@ -93,9 +95,8 @@ class Integrator(BaseIntegrator):
         source_data = self.helpers.fetch_all_relation_data(self.SOURCE_REL)
         target_data = self.helpers.fetch_all_relation_data(self.TARGET_REL)
 
-        # TODO: make dependent on charm config option
         prefix_policy = {}
-        if self.prefix_topics:
+        if not self.prefix_topics:
             prefix_policy = {
                 "replication.policy.class": "org.apache.kafka.connect.mirror.IdentityReplicationPolicy"
             }
@@ -111,7 +112,7 @@ class Integrator(BaseIntegrator):
                 "target.cluster.security.protocol": "SASL_PLAINTEXT",
                 "target.cluster.sasl.mechanism": "SCRAM-SHA-512",
                 "target.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}D\";",
-            }.update(prefix_policy)
+            } | prefix_policy
         )
 
     @override
