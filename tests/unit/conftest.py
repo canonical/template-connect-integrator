@@ -39,12 +39,17 @@ def plugin_resource():
     return Resource(name=PLUGIN_RESOURCE_KEY, path="FakePlugin.tar")
 
 
+@pytest.fixture(scope="module", autouse=True)
+def patched_exec():
+    with patch("workload.Workload.exec") as patched_exec:
+        yield patched_exec
+
+
 @pytest.fixture(scope="module")
 def patched_server(request: pytest.FixtureRequest):
     health = True if not hasattr(request, "param") else request.param
     with patch("integration.Integrator.plugin_server") as server:
         instance = MagicMock()
-        instance.exec.return_value = "done"
         instance.health_check.return_value = health
 
         server.return_value = instance

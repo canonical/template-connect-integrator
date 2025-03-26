@@ -5,7 +5,6 @@
 """Apache Kafka Connect Integrator Charmed Operator."""
 
 import logging
-from typing import cast
 
 from charms.data_platform_libs.v0.data_interfaces import PLUGIN_URL_NOT_REQUIRED
 from ops.charm import (
@@ -26,7 +25,7 @@ from literals import (
     SUBSTRATE,
 )
 from models import Context
-from workload import BaseWorkload
+from workload import Workload
 
 logger = logging.getLogger(__name__)
 
@@ -46,20 +45,16 @@ class IntegratorCharm(CharmBase):
         self.framework.observe(self.on.collect_unit_status, self._on_collect_status)
         self.framework.observe(self.on.collect_app_status, self._on_collect_status)
 
-        _plugin_server_args = (
-            [self.unit.get_container("plugin-server")] if SUBSTRATE == "k8s" else []
-        )
-
+        container = self.unit.get_container("plugin-server") if SUBSTRATE == "k8s" else None
+        self.workload = Workload(container=container, charm_dir=self.charm_dir)
         self.integrator = Integrator(
             self,
-            plugin_server_args=_plugin_server_args,
+            plugin_server_args=[self.workload],
             plugin_server_kwargs={
-                "charm_dir": self.charm_dir,
                 "base_address": self.context.unit.internal_address,
                 "port": REST_PORT,
             },
         )
-        self.workload = cast(BaseWorkload, self.integrator.server)
 
     def _on_start(self, event: StartEvent) -> None:
         """Handler for `start` event."""

@@ -62,10 +62,17 @@ class NotRequiredPluginServer(BasePluginServer):
 class BaseWorkload(ABC):
     """Abstract Base Interface for Integrator Workload."""
 
-    base_address: str
-    port: int = REST_PORT
+    charm_dir: Path
     user: str
     group: str
+
+    def __init__(
+        self,
+        container: Container | None = None,
+        charm_dir: Path = Path("/path/to/charm/"),
+    ) -> None:
+        self.container = container
+        self.charm_dir = charm_dir
 
     @abstractmethod
     def read(self, path: str) -> list[str]:
@@ -120,69 +127,12 @@ class BaseWorkload(ABC):
         """Returns the actual path on workload where plugin is stored."""
         ...
 
-    @property
-    def plugin_url(self) -> str:
-        """Returns the plugin serving URL."""
-        return f"http://{self.base_address}:{self.port}/api/v1/plugin"
 
-    @property
-    def health_url(self) -> str:
-        """Returns the health check URL."""
-        return f"http://{self.base_address}:{self.port}/api/v1/healthcheck/liveness"
-
-
-class VmPluginServer(BasePluginServer, BaseWorkload):
-    """An implementation based on FastAPI & Systemd for BasePluginServer."""
-
-    service: str = SERVICE_NAME
+class VmWorkload(BaseWorkload):
+    """An Implementation of Workload Interface for VM."""
 
     user: str = "root"
     group: str = "root"
-
-    def __init__(
-        self,
-        charm_dir: Path = Path("/path/to/charm/"),
-        base_address: str = "localhost",
-        port: int = REST_PORT,
-    ) -> None:
-        self.charm_dir = charm_dir
-        self.base_address = base_address
-        self.port = port
-
-    @override
-    def start(self) -> None:
-        service_restart(self.service)
-
-    @override
-    def stop(self) -> None:
-        service_stop(self.service)
-
-    @override
-    def configure(self) -> None:
-        self.write(content=self.systemd_config + "\n", path=SERVICE_PATH)
-        daemon_reload()
-
-    @override
-    @retry(
-        wait=wait_fixed(1),
-        stop=stop_after_attempt(5),
-        retry=retry_if_exception(lambda _: True),
-        retry_error_callback=lambda _: False,
-    )
-    def health_check(self) -> bool:
-        if not service_running(self.service):
-            return False
-
-        try:
-            response = requests.get(self.health_url, timeout=5)
-            return response.status_code == 200
-        except Exception as e:
-            logger.info(f"Something went wrong during health check: {e}")
-            raise e
-
-    @override
-    def load_plugin(self, path: str):
-        self.exec(f"mv {path} {self.plugin_file_path}")
 
     @override
     def read(self, path: str) -> list[str]:
@@ -224,10 +174,69 @@ class VmPluginServer(BasePluginServer, BaseWorkload):
             logger.error(f"cmd failed - cmd={e.cmd}, stdout={e.stdout}, stderr={e.stderr}")
             raise e
 
+    @override
+    def load_plugin(self, path: str):
+        self.exec(f"mv {path} {self.plugin_file_path}")
+
     @property
     @override
     def ready(self) -> bool:
         return True
+
+    @property
+    @override
+    def plugin_file_path(self) -> str:
+        return f"{self.charm_dir}/src/rest/resources/connector-plugin.tar"
+
+
+class VmPluginServer(BasePluginServer):
+    """An implementation based on FastAPI & Systemd for BasePluginServer."""
+
+    service: str = SERVICE_NAME
+    workload: VmWorkload
+    base_address: str
+    port: int = REST_PORT
+
+    def __init__(
+        self,
+        workload: VmWorkload,
+        base_address: str = "localhost",
+        port: int = REST_PORT,
+    ) -> None:
+        self.workload = workload
+        self.base_address = base_address
+        self.port = port
+
+    @override
+    def start(self) -> None:
+        service_restart(self.service)
+
+    @override
+    def stop(self) -> None:
+        service_stop(self.service)
+
+    @override
+    def configure(self) -> None:
+        self.workload.write(content=self.systemd_config + "\n", path=SERVICE_PATH)
+        daemon_reload()
+
+    @override
+    @retry(
+        wait=wait_fixed(1),
+        stop=stop_after_attempt(5),
+        retry=retry_if_exception(lambda _: True),
+        retry_error_callback=lambda _: False,
+    )
+    def health_check(self) -> bool:
+        if not service_running(self.service):
+            return False
+
+        try:
+            response = requests.get(self.health_url, timeout=5)
+            return response.status_code == 200
+        except Exception as e:
+            logger.info(f"Something went wrong during health check: {e}")
+            raise e
 
     @property
     def systemd_config(self) -> str:
@@ -240,93 +249,35 @@ class VmPluginServer(BasePluginServer, BaseWorkload):
             Requires=network.target
 
             [Service]
-            WorkingDirectory={self.charm_dir}/src/rest
+            WorkingDirectory={self.workload.charm_dir}/src/rest
             EnvironmentFile=-/etc/environment
             Environment=PORT={self.port}
-            Environment=PLUGIN_FILE_PATH={self.plugin_file_path}
-            ExecStart={self.charm_dir}/venv/bin/python {self.charm_dir}/src/rest/entrypoint.py
+            Environment=PLUGIN_FILE_PATH={self.workload.plugin_file_path}
+            ExecStart={self.workload.charm_dir}/venv/bin/python {self.workload.charm_dir}/src/rest/entrypoint.py
             Restart=always
             Type=simple
         """
         )
 
     @property
-    @override
-    def plugin_file_path(self) -> str:
-        return f"{self.charm_dir}/src/rest/resources/connector-plugin.tar"
+    def plugin_url(self) -> str:
+        """Returns the plugin serving URL."""
+        return f"http://{self.base_address}:{self.port}/api/v1/plugin"
+
+    @property
+    def health_url(self) -> str:
+        """Returns the health check URL."""
+        return f"http://{self.base_address}:{self.port}/api/v1/healthcheck/liveness"
 
 
 # K8s
 
 
-class K8sPluginServer(BasePluginServer, BaseWorkload):
-    """An implementation based on FastAPI & Pebble for BasePluginServer."""
-
-    service: str = SERVICE_NAME
+class K8sWorkload(BaseWorkload):
+    """An Implementation of Workload Interface for K8s."""
 
     user: str = "_daemon_"
     group: str = "_daemon_"
-
-    stage_dir: str = "/home/workload/"
-    python_path: str = f"{stage_dir}/charm/venv/lib/python3.10/site-packages/"
-
-    def __init__(
-        self,
-        container: Container,
-        charm_dir: Path = Path("/path/to/charm/"),
-        base_address: str = "localhost",
-        port: int = REST_PORT,
-    ) -> None:
-        self.container = container
-        self.charm_dir = charm_dir
-        self.base_address = base_address
-        self.port = port
-
-    @override
-    def start(self) -> None:
-        self.container.add_layer(CHARM_KEY, self.layer, combine=True)
-        self.container.restart(self.service)
-
-    @override
-    def stop(self) -> None:
-        self.container.stop(self.service)
-
-    @override
-    def configure(self) -> None:
-        # Make a tar archive from charm container's source
-        subprocess.check_output(
-            "tar -cvf /home/workload.tar ./charm/", shell=True, cwd=f"{self.charm_dir}/.."
-        )
-
-        # Copy the archive to the workload container
-        self.write(open("/home/workload.tar", "rb"), "/home/workload.tar")
-
-        try:
-            self.container.make_dir(self.stage_dir)
-        except pebble.PathError as e:
-            if "file exists" not in str(e).lower():
-                raise e
-
-        # Untar the archive using python stdlib's tarfile since we don't have tar!
-        self.exec(["python3", "-m", "tarfile", "-e", "/home/workload.tar", self.stage_dir])
-
-    @override
-    @retry(
-        wait=wait_fixed(1),
-        stop=stop_after_attempt(5),
-        retry=retry_if_exception(lambda _: True),
-        retry_error_callback=lambda _: False,
-    )
-    def health_check(self) -> bool:
-        if not self.ready or not self.container.get_service(self.service).is_running():
-            return False
-
-        try:
-            response = requests.get(self.health_url, timeout=5)
-            return response.status_code == 200
-        except Exception as e:
-            logger.info(f"Something went wrong during health check: {e}")
-            raise e
 
     @override
     def load_plugin(self, path: str):
@@ -378,6 +329,91 @@ class K8sPluginServer(BasePluginServer, BaseWorkload):
         return "/home/connector-plugin.tar"
 
     @property
+    def container(self) -> Container:
+        """Returns the K8s Container."""
+        if self._container is None:
+            raise Exception("Container should be defined for K8s Workloads.")
+
+        return self._container
+
+    @container.setter
+    def container(self, value: Container):
+        self._container = value
+
+
+class K8sPluginServer(BasePluginServer):
+    """An implementation based on FastAPI & Pebble for BasePluginServer running."""
+
+    service: str = SERVICE_NAME
+    workload: K8sWorkload
+    base_address: str
+    port: int = REST_PORT
+
+    stage_dir: str = "/home/workload/"
+    python_path: str = f"{stage_dir}/charm/venv/lib/python3.10/site-packages/"
+
+    def __init__(
+        self,
+        workload: K8sWorkload,
+        base_address: str = "localhost",
+        port: int = REST_PORT,
+    ) -> None:
+        self.workload = workload
+        self.base_address = base_address
+        self.port = port
+
+    @override
+    def start(self) -> None:
+        self.workload.container.add_layer(CHARM_KEY, self.layer, combine=True)
+        self.workload.container.restart(self.service)
+
+    @override
+    def stop(self) -> None:
+        self.workload.container.stop(self.service)
+
+    @override
+    def configure(self) -> None:
+        # Make a tar archive from charm container's source
+        subprocess.check_output(
+            "tar -cvf /home/workload.tar ./charm/", shell=True, cwd=f"{self.workload.charm_dir}/.."
+        )
+
+        # Copy the archive to the workload container
+        self.workload.write(open("/home/workload.tar", "rb"), "/home/workload.tar")
+
+        try:
+            self.workload.container.make_dir(self.stage_dir)
+        except pebble.PathError as e:
+            if "file exists" not in str(e).lower():
+                raise e
+
+        # Untar the archive using python stdlib's tarfile since we don't have tar!
+        self.workload.exec(
+            ["python3", "-m", "tarfile", "-e", "/home/workload.tar", self.stage_dir]
+        )
+
+    @override
+    @retry(
+        wait=wait_fixed(1),
+        stop=stop_after_attempt(5),
+        retry=retry_if_exception(lambda _: True),
+        retry_error_callback=lambda _: False,
+    )
+    def health_check(self) -> bool:
+        if (
+            not self.workload.ready
+            or not self.workload.container.get_service(self.service).is_running()
+        ):
+            return False
+
+        try:
+            response = requests.get(self.health_url, timeout=5)
+            return response.status_code == 200
+        except Exception as e:
+            logger.info(f"Something went wrong during health check: {e}")
+            raise e
+
+    @property
     def layer(self) -> pebble.Layer:
         """Returns a Pebble configuration layer for FastAPI service."""
         command = f"python3 {self.stage_dir}/charm/src/rest/entrypoint.py"
@@ -391,20 +427,32 @@ class K8sPluginServer(BasePluginServer, BaseWorkload):
                     "summary": "Plugin Server",
                     "command": command,
                     "startup": "enabled",
-                    "user": self.user,
-                    "group": self.group,
+                    "user": self.workload.user,
+                    "group": self.workload.group,
                     "environment": {
                         "PYTHONPATH": self.python_path,
                         "PORT": str(REST_PORT),
-                        "PLUGIN_FILE_PATH": self.plugin_file_path,
+                        "PLUGIN_FILE_PATH": self.workload.plugin_file_path,
                     },
                 }
             },
         }
         return pebble.Layer(layer_config)
 
+    @property
+    def plugin_url(self) -> str:
+        """Returns the plugin serving URL."""
+        return f"http://{self.base_address}:{self.port}/api/v1/plugin"
+
+    @property
+    def health_url(self) -> str:
+        """Returns the health check URL."""
+        return f"http://{self.base_address}:{self.port}/api/v1/healthcheck/liveness"
+
 
 if SUBSTRATE == "k8s":
+    Workload: type[BaseWorkload] = K8sWorkload
     PluginServer: type[BasePluginServer] = K8sPluginServer
 else:
+    Workload: type[BaseWorkload] = VmWorkload
     PluginServer: type[BasePluginServer] = VmPluginServer
