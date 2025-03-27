@@ -193,9 +193,7 @@ class VmPluginServer(BasePluginServer):
     """An implementation based on FastAPI & Systemd for BasePluginServer."""
 
     service: str = SERVICE_NAME
-    workload: VmWorkload
-    base_address: str
-    port: int = REST_PORT
+    service_path: str = SERVICE_PATH
 
     def __init__(
         self,
@@ -217,7 +215,7 @@ class VmPluginServer(BasePluginServer):
 
     @override
     def configure(self) -> None:
-        self.workload.write(content=self.systemd_config + "\n", path=SERVICE_PATH)
+        self.workload.write(content=self.systemd_config + "\n", path=self.service_path)
         daemon_reload()
 
     @override
@@ -345,10 +343,6 @@ class K8sPluginServer(BasePluginServer):
     """An implementation based on FastAPI & Pebble for BasePluginServer running."""
 
     service: str = SERVICE_NAME
-    workload: K8sWorkload
-    base_address: str
-    port: int = REST_PORT
-
     stage_dir: str = "/home/workload/"
     python_path: str = f"{stage_dir}/charm/venv/lib/python3.10/site-packages/"
 
