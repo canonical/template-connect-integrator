@@ -67,6 +67,7 @@ jobs:
       matrix:
         platform: ${{ fromJSON(needs.collect-platforms.outputs.platforms) }}
         build-args:
+          # mysql
           - plugin-url: https://github.com/Aiven-Open/jdbc-connector-for-apache-kafka/releases/download/v6.10.0/jdbc-connector-for-apache-kafka-6.10.0.tar
             name: mysql-connect-integrator
             substrate: vm
@@ -77,6 +78,34 @@ jobs:
             substrate: k8s
             data-interface: mysql_client
             impl: mysql
+          # postgresql
+          - plugin-url: https://github.com/Aiven-Open/jdbc-connector-for-apache-kafka/releases/download/v6.10.0/jdbc-connector-for-apache-kafka-6.10.0.tar
+            name: postgresql-connect-integrator
+            substrate: vm
+            data-interface: postgresql_client
+            impl: postgresql
+          - plugin-url: https://github.com/Aiven-Open/jdbc-connector-for-apache-kafka/releases/download/v6.10.0/jdbc-connector-for-apache-kafka-6.10.0.tar
+            name: postgresql-connect-k8s-integrator
+            substrate: k8s
+            data-interface: postgresql_client
+            impl: postgresql
+          # s3
+          - plugin-url: https://github.com/Aiven-Open/cloud-storage-connectors-for-apache-kafka/releases/download/v3.1.0/s3-sink-connector-for-apache-kafka-3.1.0.tar
+            name: s3-connect-integrator
+            substrate: vm
+            data-interface: s3
+            impl: s3
+          - plugin-url: https://github.com/Aiven-Open/cloud-storage-connectors-for-apache-kafka/releases/download/v3.1.0/s3-sink-connector-for-apache-kafka-3.1.0.tar
+            name: s3-connect-k8s-integrator
+            substrate: k8s
+            data-interface: s3
+            impl: s3
+          # opensearch
+          - plugin-url: https://github.com/Aiven-Open/opensearch-connector-for-apache-kafka/releases/download/v3.1.1/opensearch-connector-for-apache-kafka-3.1.1.tar
+            name: opensearch-connect-integrator
+            substrate: vm
+            data-interface: opensearch_client
+            impl: opensearch
 
     name: '${{ matrix.build-args.name }} - ${{ matrix.platform.name }}'
     needs:
