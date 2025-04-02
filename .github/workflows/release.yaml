@@ -63,6 +63,7 @@ jobs:
 
   build-and-release:
     strategy:
+      fail-fast: false
       matrix:
         platform: ${{ fromJSON(needs.collect-platforms.outputs.platforms) }}
         build-args:
@@ -159,7 +160,7 @@ jobs:
       - name: Download plugin
         run: wget ${{ matrix.build-args.plugin-url }} -O build/plugin.tar
       - name: Register
-        run: charmcraft register {{ matrix.build-args.name }}
+        run: charmcraft register ${{ matrix.build-args.name }}
         continue-on-error: true
         env:
           CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
