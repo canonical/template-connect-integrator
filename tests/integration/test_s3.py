@@ -14,9 +14,9 @@ from helpers import (
     CONNECT_APP,
     KAFKA_APP,
     PLUGIN_RESOURCE_KEY,
-    S3_CONNECTOR_LINK,
     DatabaseFixtureParams,
     download_file,
+    get_plugin_url,
     produce_messages,
 )
 from pytest_operator.plugin import OpsTest
@@ -176,8 +176,9 @@ async def test_deploy_sink_app(ops_test: OpsTest, app_charm, tmp_path_factory):
 
     temp_dir = tmp_path_factory.mktemp("plugin")
     plugin_path = f"{temp_dir}/s3-plugin.tar"
-    logging.info(f"Downloading S3 connectors from {S3_CONNECTOR_LINK}...")
-    download_file(S3_CONNECTOR_LINK, plugin_path)
+    link = get_plugin_url()
+    logging.info(f"Downloading S3 connectors from {link}...")
+    download_file(link, plugin_path)
     logging.info("Download finished successfully.")
 
     bucket = os.environ[S3EnvKeys.BUCKET]

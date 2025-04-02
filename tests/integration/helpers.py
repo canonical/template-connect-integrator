@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import kafka
 import kafka.errors
 import requests
+import yaml
 from kafka.admin import NewTopic
 from ops.model import Unit
 from pytest_operator.plugin import OpsTest
@@ -29,11 +30,8 @@ POSTGRES_INTEGRATOR = "postgres-sink-integrator"
 POSTGRES_DB = "sink_db"
 PLUGIN_RESOURCE_KEY = "connect-plugin"
 
-JDBC_CONNECTOR_DOWNLOAD_LINK = "https://github.com/Aiven-Open/jdbc-connector-for-apache-kafka/releases/download/v6.10.0/jdbc-connector-for-apache-kafka-6.10.0.tar"
 JDBC_SOURCE_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSourceConnector"
 JDBC_SINK_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSinkConnector"
-OPENSEARCH_CONNECTOR_LINK = "https://github.com/Aiven-Open/opensearch-connector-for-apache-kafka/releases/download/v3.1.1/opensearch-connector-for-apache-kafka-3.1.1.tar"
-S3_CONNECTOR_LINK = "https://github.com/Aiven-Open/cloud-storage-connectors-for-apache-kafka/releases/download/v3.1.0/s3-sink-connector-for-apache-kafka-3.1.0.tar"
 S3_CONNECTOR_CLASS = "io.aiven.kafka.connect.s3.AivenKafkaConnectS3SinkConnector"
 
 
@@ -52,6 +50,17 @@ class DatabaseFixtureParams:
     db_name: str
     no_tables: int = 1
     no_records: int = 1000
+
+
+def get_plugin_url(build_dir: str = "./build") -> str:
+    """Loads `plugin-url` key from charmcraft.yaml in the build folder."""
+    metadata = yaml.safe_load(open(f"{build_dir}/metadata.yaml", "r"))
+    links = metadata.get("links", {}).get("plugin-url", [])
+
+    if not links:
+        return ""
+
+    return links[0]
 
 
 async def run_command_on_unit(
