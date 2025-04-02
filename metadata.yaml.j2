@@ -5,9 +5,18 @@ display-name: Apache Kafka Connect Integrator
 description: |
   Description
 summary: Apache Kafka Connect Integrator
-docs: https://discourse.charmhub.io/t/charmed-kafka-documentation/10288
 source: https://github.com/canonical/template-connect-integrator
 issues: https://github.com/canonical/template-connect-integrator/issues
+links:
+  plugin-url:
+{%- if impl in ("mysql", "postgresql") %}
+    - https://github.com/Aiven-Open/jdbc-connector-for-apache-kafka/releases/download/v6.10.0/jdbc-connector-for-apache-kafka-6.10.0.tar
+{%- elif impl == "opensearch" %}
+    - https://github.com/Aiven-Open/opensearch-connector-for-apache-kafka/releases/download/v3.1.1/opensearch-connector-for-apache-kafka-3.1.1.tar
+{%- elif impl == "s3" %}
+    - https://github.com/Aiven-Open/cloud-storage-connectors-for-apache-kafka/releases/download/v3.1.0/s3-sink-connector-for-apache-kafka-3.1.0.tar
+{%- endif %}
+
 website:
   - https://github.com/canonical/template-connect-integrator
 maintainers:
