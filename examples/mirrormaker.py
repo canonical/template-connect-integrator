@@ -111,8 +111,9 @@ class Integrator(BaseIntegrator):
                 "source.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{source_data.get('username')}\" password=\"{source_data.get('password')}\";",
                 "target.cluster.security.protocol": "SASL_PLAINTEXT",
                 "target.cluster.sasl.mechanism": "SCRAM-SHA-512",
-                "target.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}D\";",
-            } | prefix_policy
+                "target.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
+            }
+            | prefix_policy
         )
 
     @override

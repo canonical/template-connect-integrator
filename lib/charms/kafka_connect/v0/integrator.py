@@ -57,6 +57,9 @@ class ConnectApiError(Exception):
 
 IntegratorMode = Literal["source", "sink"]
 
+# Used on MirrorMaker, the integrator needs to spawn 3 tasks per relation
+MULTITASK_PREFIX = "mirror-"
+
 
 class TaskStatus(str, Enum):
     """Enum for Connector task status representation."""
@@ -151,7 +154,20 @@ class BasePluginServer(ABC):
 
 
 class ConfigOption(BaseModel):
-    """Model for defining mapping between charm config and connector config."""
+    """Model for defining mapping between charm config and connector config.
+
+    To define a config mapping, following properties could be used:
+
+        json_key (str, required): The counterpart key in connector JSON config. If `mode` is set to "none", this would be ignored and could be set to any arbitrary value.
+        default (Any, required): The default value for this config option.
+        mode (Literal["both", "source", "sink", "none"], optional): Defaults to "both". The expected behaviour of each mode are as following:
+            - both: This config option would be used in both source and sink connector modes.
+            - source: This config option would be used ONLY in source connector mode.
+            - sink: This config option would be used ONLY in sink connector mode.
+            - none: This is not a connector config, but rather a charm config. If set to none, this option would not be used to configure the connector.
+        configurable (bool, optional): Whether this option is configurable via charm config. Defaults to True.
+        description (str, optional): A brief description of this config option, which will be added to the charm's `config.yaml`.
+    """
 
     json_key: str  # Config key in the Task configuration JSON
     default: Any  # Default value
@@ -292,6 +308,7 @@ class ConnectClient:
         auth = HTTPBasicAuth(self.client_context.username, self.client_context.password)
 
         try:
+            # TODO: FIXME: use tls-ca to verify the cert.
             response = requests.request(method, url, verify=False, auth=auth, **kwargs)
         except Exception as e:
             raise ConnectApiError(f"Connect API call /{api} failed: {e}")
@@ -301,41 +318,46 @@ class ConnectClient:
 
         return response
 
-    def start_task(self, task_config: dict) -> None:
+    def start_connector(self, task_config: dict, task_name: str | None = None) -> None:
         """Starts a connector task by posting `task_config` to the `connectors` endpoint.
 
         Raises:
             ConnectApiError: If unsuccessful.
         """
-        _json = {"name": self.connector_name, "config": task_config}
+        _json = {
+            "name": self.connector_name if task_name is None else task_name,
+            "config": task_config,
+        }
         response = self.request(method="POST", api="connectors", json=_json)
 
         if response.status_code == 201:
             return
 
         if response.status_code == 409 and "already exists" in response.json().get("message", ""):
-            logger.info("Task has already been submitted, skipping...")
+            logger.info("Connector has already been submitted, skipping...")
             return
 
         logger.error(response.content)
-        raise ConnectApiError(f"Unable to start the task, details: {response.content}")
+        raise ConnectApiError(f"Unable to start the connector, details: {response.content}")
 
-    def stop_task(self) -> None:
-        """Stops a connector by making a request to connectors/CONNECTOR-NAME/stop endpoint.
+    def stop_connector(self, task_name: str | None = None) -> None:
+        """Stops a connector at connectors/[CONNECTOR-NAME|task-name]/stop endpoint.
 
         Raises:
             ConnectApiError: If unsuccessful.
         """
-        response = self.request(method="PUT", api=f"connectors/{self.connector_name}/stop")
+        response = self.request(
+            method="PUT", api=f"connectors/{self.connector_name if task_name is None else task_name}/stop"
+        )
 
         if response.status_code != 204:
-            raise ConnectApiError(f"Unable to stop the task, details: {response.content}")
+            raise ConnectApiError(f"Unable to stop the connector, details: {response.content}")
 
-    def task_status(self) -> TaskStatus:
+    def task_status(self, task_name: str | None = None) -> TaskStatus:
         """Returns the connector/task status."""
-        response = self.request(
-            method="GET", api=f"connectors/{self.connector_name}/tasks", timeout=10
-        )
+        task_name = self.connector_name if task_name is None else task_name
+
+        response = self.request(method="GET", api=f"connectors/{task_name}/tasks", timeout=10)
 
         if response.status_code not in (200, 404):
             logger.error(f"Unable to fetch tasks status, details: {response.content}")
@@ -352,7 +374,7 @@ class ConnectClient:
         task_id = tasks[0].get("id", {}).get("task", 0)
         status_response = self.request(
             method="GET",
-            api=f"connectors/{self.connector_name}/tasks/{task_id}/status",
+            api=f"connectors/{task_name}/tasks/{task_id}/status",
             timeout=10,
         )
 
@@ -442,6 +464,8 @@ class BaseIntegrator(ABC, Object):
         self.mode: IntegratorMode = cast(IntegratorMode, self.config.get("mode", self.mode))
         self.helpers: _DataInterfacesHelpers = _DataInterfacesHelpers(self.charm)
 
+        self._task_names: list[str] = []
+
         # init handlers
         self.rel_name = self.CONNECT_REL
         self.requirer = KafkaConnectRequirerEventHandlers(self.charm, self._requirer_interface)
@@ -459,6 +483,11 @@ class BaseIntegrator(ABC, Object):
     def _peer_relation(self) -> Optional[Relation]:
         """Peer `Relation` object."""
         return self.model.get_relation(self.PEER_REL)
+
+    @property
+    def _connect_client_relation(self) -> Optional[Relation]:
+        """connect-client `Relation` object."""
+        return self.model.get_relation(self.CONNECT_REL)
 
     @cached_property
     def _requirer_interface(self) -> KafkaConnectRequirerData:
@@ -486,9 +515,18 @@ class BaseIntegrator(ABC, Object):
     @cached_property
     def _client(self) -> ConnectClient:
         """Kafka Connect client for handling REST API calls."""
-        return ConnectClient(self._client_context, self.name)
+        return ConnectClient(self._client_context, self.connector_unique_name)
 
     # Public properties
+
+    @property
+    def connector_unique_name(self) -> str:
+        """Returns connectors' unique name used on the REST interface."""
+        if not self._connect_client_relation:
+            return ""
+
+        relation_id = self._connect_client_relation.id
+        return f"{self.name}_r{relation_id}_{self.model.uuid.replace('-', '')}"
 
     @property
     def started(self) -> bool:
@@ -526,49 +564,120 @@ class BaseIntegrator(ABC, Object):
             )
         )
 
+    @property
+    def task_names(self) -> list[str]:
+        """Return a list of task names that the integrator should create."""
+        return self._task_names
+
+    @task_names.setter
+    def task_names(self, val: list[str]) -> None:
+        self._task_names = val
+
     # Public methods
 
-    def configure(self, config: dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any] | list[dict[str, Any]]) -> None:
         """Dynamically configure the connector with provided `config` dictionary.
 
-        Configuration provided using this method will override default config and config provided by juju runtime (i.e. defined using the `BaseConfigFormmatter` interface).
+        Configuration provided using this method will override default config and config provided 
+        by juju runtime (i.e. defined using the `BaseConfigFormmatter` interface).
         All configuration provided using this method are persisted using juju secrets.
-        Each call would update the previous provided configuration (if any), mimicking the `dict.update()` behavior.
+        Each call would update the previous provided configuration (if any), mimicking the 
+        `dict.update()` behavior.
+
+        Args:
+            config (dict[str, Any] | list[dict[str, Any]]): 
+                - If a single dict is provided, updates the configuration for a single task.
+                - If a list of dicts is provided, it will create multiple tasks. Each dict in the
+                  list represents a separate task configuration. A "name" key should be used to
+                  help differentiate task names.
         """
         if self._peer_relation is None:
             return
 
-        updated_config = self.dynamic_config | config
+        updated_config = self.dynamic_config.copy()
+
+        if isinstance(config, dict):
+            updated_config.update(config)
+
+        if isinstance(config, list):
+            for task_config in config:
+                try:
+                    task_id = MULTITASK_PREFIX + task_config["name"]
+                except KeyError:
+                    logger.error("List of tasks should provide a 'name' key to differentiate them")
+                    raise
+
+                # Remove "name" key so it's not part of the config passed to the JSON afterwards
+                task_config.pop("name")
+                updated_config[task_id] = task_config
 
         self._peer_unit_interface.update_relation_data(
-            self._peer_relation.id, data={self.CONFIG_SECRET_FIELD: json.dumps(updated_config)}
+            self._peer_relation.id, 
+            data={self.CONFIG_SECRET_FIELD: json.dumps(updated_config)}
         )
 
-    def start_task(self) -> None:
-        """Starts the connector task."""
+    def start_connector(self) -> None:
+        """Starts the connector task(s)."""
         if self.started:
             logger.info("Connector task has already started")
             return
 
         self.setup()
 
-        try:
-            self._client.start_task(
-                self.formatter.to_dict(self.config, self.mode) | self.dynamic_config
-            )
-        except ConnectApiError as e:
-            logger.error(f"Task start failed, details: {e}")
-            return
+        self.task_names = [
+            key for key in self.dynamic_config.keys()
+            if key.startswith(MULTITASK_PREFIX)
+        ]
+
+        # We have more than one tasks to be executed, so the dictionary needs to be cleaned up
+        if self.task_names:
+            # This dict will now have the specific configs for each task
+            tasks = {
+                key: self.dynamic_config[key] for key in self.dynamic_config.keys() 
+                if key.startswith(MULTITASK_PREFIX)
+            }
+
+            # Clear the subdictionaries from the dynamic_config. Now only the common 
+            # configs will remain
+            for key in self.task_names:
+                self.dynamic_config.pop(key)
+
+            # Now we can start all the tasks
+            for task_name in self.task_names:
+                try:
+                    self._client.start_connector(
+                        task_config=self.formatter.to_dict(charm_config=self.config, mode="source") | self.dynamic_config | tasks[task_name],
+                        task_name=task_name,
+                    )
+                except ConnectApiError as e:
+                    logger.error(f"Task start failed, details: {e}")
+                    return
+
+        # Single task case
+        else:
+            try:
+                self._client.start_connector(self.formatter.to_dict(charm_config=self.config, mode="source") | self.dynamic_config)
+            except ConnectApiError as e:
+                logger.error(f"Task start failed, details: {e}")
+                return
 
         self.started = True
 
     def stop_task(self) -> None:
         """Stops the connector task."""
-        try:
-            self._client.stop_task()
-        except ConnectApiError as e:
-            logger.error(f"Task stop failed, details: {e}")
-            return
+        if self.task_names:
+            for task_name in self.task_names:
+                    try:
+                        self._client.stop_connector(task_name=task_name)
+                    except ConnectApiError as e:
+                        logger.error(f"Task stop failed, details: {e}")
+                        return
+        else:
+            try:
+                self._client.stop_connector()
+            except ConnectApiError as e:
+                logger.error(f"Task stop failed, details: {e}")
+                return
 
         self.teardown()
         self.started = False
@@ -578,6 +687,10 @@ class BaseIntegrator(ABC, Object):
         """Returns connector task status."""
         if not self.started:
             return TaskStatus.UNASSIGNED
+
+        # TODO: status should be handled in a more complex way than this
+        if self.task_names:
+            return self._client.task_status(task_name=self.task_names[0])
 
         return self._client.task_status()
 
@@ -609,7 +722,7 @@ class BaseIntegrator(ABC, Object):
             return
 
         logger.info(f"Starting {self.name} task...")
-        self.start_task()
+        self.start_connector()
 
         if not self.started:
             event.defer()
@@ -620,4 +733,5 @@ class BaseIntegrator(ABC, Object):
 
     def _on_relation_broken(self, _: RelationBrokenEvent) -> None:
         """Handler for `relation-broken` event."""
-        self.stop_task()
+        self.teardown()
+        self.started = False
