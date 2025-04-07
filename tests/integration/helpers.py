@@ -18,6 +18,7 @@ CONNECT_CHANNEL = "latest/edge"
 CONNECT_ADMIN_USER = "admin"
 CONNECT_REST_PORT = 8083
 KAFKA_APP = "kafka"
+KAFKA_APP_B = "kafka-b"
 KAFKA_CHANNEL = "3/edge"
 MYSQL_APP = "mysql"
 MYSQL_CHANNEL = "8.0/stable"
@@ -122,20 +123,25 @@ async def assert_messages_produced(
     password = data["password"]
     server = await get_unit_ipv4_address(ops_test, ops_test.model.applications[kafka_app].units[0])
 
-    consumer = kafka.KafkaConsumer(
-        topic,
-        bootstrap_servers=f"{server}:9092",
-        sasl_mechanism="SCRAM-SHA-512",
-        sasl_plain_username=username,
-        sasl_plain_password=password,
-        auto_offset_reset="earliest",
-        security_protocol="SASL_PLAINTEXT",
-        consumer_timeout_ms=5000,
-    )
-
     messages = []
-    for msg in consumer:
-        messages.append(msg.value)
+    try:
+        consumer = kafka.KafkaConsumer(
+            topic,
+            bootstrap_servers=f"{server}:9092",
+            sasl_mechanism="SCRAM-SHA-512",
+            sasl_plain_username=username,
+            sasl_plain_password=password,
+            auto_offset_reset="earliest",
+            security_protocol="SASL_PLAINTEXT",
+            consumer_timeout_ms=5000,
+        )
+
+        for msg in consumer:
+            messages.append(msg.value)
+    except kafka.errors.UnknownTopicOrPartitionError:
+        pass
+
+    consumer.close()
 
     assert len(messages) == no_messages
 
@@ -199,3 +205,5 @@ async def produce_messages(
 
     for i in range(1, no_messages + 1):
         producer.send(topic, generate_random_message_with_schema(i))
+
+    producer.close()

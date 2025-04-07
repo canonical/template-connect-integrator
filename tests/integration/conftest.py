@@ -14,6 +14,7 @@ from helpers import (
     CONNECT_CHANNEL,
     K8S_IMAGE,
     KAFKA_APP,
+    KAFKA_APP_B,
     KAFKA_CHANNEL,
     MYSQL_APP,
     MYSQL_CHANNEL,
@@ -73,6 +74,19 @@ async def deploy_kafka(ops_test: OpsTest, substrate) -> None:
         charm_name,
         channel=KAFKA_CHANNEL,
         application_name=KAFKA_APP,
+        num_units=1,
+        config={"roles": "broker,controller"},
+    )
+
+
+@pytest.fixture(scope="module")
+async def deploy_kafka_passive(ops_test: OpsTest, substrate) -> None:
+    """Deploys the Apache Kafka Charm, the deployed application name would be determined by `KAFKA_APP_B` variable."""
+    charm_name = "kafka" if substrate == "vm" else "kafka-k8s"
+    await ops_test.model.deploy(
+        charm_name,
+        channel=KAFKA_CHANNEL,
+        application_name=KAFKA_APP_B,
         num_units=1,
         config={"roles": "broker,controller"},
     )
