@@ -10,13 +10,13 @@ import string
 import pytest
 from helpers import (
     CONNECT_APP,
-    JDBC_CONNECTOR_DOWNLOAD_LINK,
     KAFKA_APP,
     PLUGIN_RESOURCE_KEY,
     POSTGRES_APP,
     DatabaseFixtureParams,
     assert_messages_produced,
     download_file,
+    get_plugin_url,
     get_unit_ipv4_address,
     run_command_on_unit,
 )
@@ -96,8 +96,9 @@ async def test_deploy_app(ops_test: OpsTest, app_charm, tmp_path_factory):
 
     temp_dir = tmp_path_factory.mktemp("plugin")
     plugin_path = f"{temp_dir}/jdbc-plugin.tar"
-    logging.info(f"Downloading JDBC connectors from {JDBC_CONNECTOR_DOWNLOAD_LINK}...")
-    download_file(JDBC_CONNECTOR_DOWNLOAD_LINK, plugin_path)
+    link = get_plugin_url()
+    logging.info(f"Downloading JDBC connectors from {link}...")
+    download_file(link, plugin_path)
     logging.info("Download finished successfully.")
 
     await ops_test.model.deploy(
@@ -157,8 +158,9 @@ async def test_deploy_sink_app(ops_test: OpsTest, app_charm, tmp_path_factory):
 
     temp_dir = tmp_path_factory.mktemp("plugin")
     plugin_path = f"{temp_dir}/jdbc-plugin.tar"
-    logging.info(f"Downloading JDBC connectors from {JDBC_CONNECTOR_DOWNLOAD_LINK}...")
-    download_file(JDBC_CONNECTOR_DOWNLOAD_LINK, plugin_path)
+    link = get_plugin_url()
+    logging.info(f"Downloading JDBC connectors from {link}...")
+    download_file(link, plugin_path)
     logging.info("Download finished successfully.")
 
     await ops_test.model.deploy(

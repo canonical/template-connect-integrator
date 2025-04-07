@@ -12,10 +12,10 @@ from helpers import (
     CONNECT_APP,
     KAFKA_APP,
     KAFKA_CHANNEL,
-    OPENSEARCH_CONNECTOR_LINK,
     PLUGIN_RESOURCE_KEY,
     DatabaseFixtureParams,
     download_file,
+    get_plugin_url,
     get_secret_data,
     get_unit_ipv4_address,
     produce_messages,
@@ -145,8 +145,9 @@ async def test_deploy_sink_app(ops_test: OpsTest, app_charm, tmp_path_factory):
 
     temp_dir = tmp_path_factory.mktemp("plugin")
     plugin_path = f"{temp_dir}/os-plugin.tar"
-    logging.info(f"Downloading Opensearch connectors from {OPENSEARCH_CONNECTOR_LINK}...")
-    download_file(OPENSEARCH_CONNECTOR_LINK, plugin_path)
+    link = get_plugin_url()
+    logging.info(f"Downloading Opensearch connectors from {link}...")
+    download_file(link, plugin_path)
     logging.info("Download finished successfully.")
 
     await ops_test.model.deploy(
