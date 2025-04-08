@@ -42,6 +42,9 @@ class MirrormakerConfigFormatter(BaseConfigFormatter):
     emit_checkpoints = ConfigOption(
         json_key="emit.checkpoints.enabled", default=True, configurable=False
     )
+    emit_heartbeats = ConfigOption(
+        json_key="emit.heartbeats.enabled", default=True, configurable=False
+    )
 
     # General charm config
     prefix_topics = ConfigOption(
@@ -120,24 +123,38 @@ class Integrator(BaseIntegrator):
             | common_auth
         )
 
+        mirror_heartbeat = (
+            {
+                "name": "heartbeat",
+                "connector.class": "org.apache.kafka.connect.mirror.MirrorHeartbeatConnector",
+                "emit.heartbeats.enabled": True,
+                "consumer.auto.offset.reset": "earliest",
+            }
+            | prefix_policy
+            | common_auth
+        )
+
         # TODO: to add?
         # "key.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
         # "value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
-        # "groups.exclude": "console-consumer-.*, connect-.*, __.*",
-        # ^ making this last one configurable by users might be a pain
-        # mirror_checkpoint = {
-        #     "name": "checkpoint",
-        #     "connector.class": "org.apache.kafka.connect.mirror.MirrorCheckpointConnector",
-        #     "consumer.auto.offset.reset": "earliest",
-        #     "refresh.groups.enabled": True,
-        #     "refresh.groups.interval.seconds": 5,
-        #     "sync.group.offsets.interval.seconds": 5,
-        #     "producer.linger.ms": 500,
-        #     "producer.retry.backoff.ms": 1000,
-        #     "producer.max.block.ms": 10000,
-        # } | prefix_policy | common_auth
+        mirror_checkpoint = (
+            {
+                "name": "checkpoint",
+                "connector.class": "org.apache.kafka.connect.mirror.MirrorCheckpointConnector",
+                "groups.exclude": "console-consumer-.*, connect-.*, __.*",
+                "consumer.auto.offset.reset": "earliest",
+                "refresh.groups.enabled": True,
+                "refresh.groups.interval.seconds": 5,
+                "sync.group.offsets.interval.seconds": 5,
+                "producer.linger.ms": 500,
+                "producer.retry.backoff.ms": 1000,
+                "producer.max.block.ms": 10000,
+            }
+            | prefix_policy
+            | common_auth
+        )
 
-        self.configure([mirror_source])
+        self.configure([mirror_source, mirror_checkpoint, mirror_heartbeat])
 
     @override
     def teardown(self):
