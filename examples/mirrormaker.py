@@ -115,9 +115,18 @@ class Integrator(BaseIntegrator):
             {
                 "name": "source",
                 "connector.class": "org.apache.kafka.connect.mirror.MirrorSourceConnector",
+                "sync.topic.acls.enabled": True,
+                "sync.topic.configs.enabled": True,
+                "sync.topic.configs.interval.seconds": 5,
                 "refresh.topics.enabled": True,
                 "refresh.topics.interval.seconds": 5,
-                "sync.topic.acls.enabled": True,
+                "refresh.groups.enabled": True,
+                "refresh.groups.interval.seconds": 10,
+                "groups.exclude": "console-consumer-.*,connect-.*,__.*",
+                "consumer.auto.offset.reset": "earliest",
+                "producer.max.block.ms": 10000,
+                "producer.linger.ms": 500,
+                "producer.retry.backoff.ms": 1000,
             }
             | prefix_policy
             | common_auth
