@@ -84,10 +84,8 @@ class Integrator(BaseIntegrator):
     def setup(self) -> None:
         source_data = self.helpers.fetch_all_relation_data(self.SOURCE_REL)
         target_data = self.helpers.fetch_all_relation_data(self.TARGET_REL)
-
-        # TODO
-        # Creates the internal topics for the MirrorMaker connector
-        self._create_internal_topics(source_data, target_data)
+        source_cluster_alias = self.helpers.remote_app_name(self.SOURCE_REL) or "source"
+        target_cluster_alias = self.helpers.remote_app_name(self.TARGET_REL) or "target"
 
         prefix_policy = {}
         if not self.prefix_topics:
@@ -110,12 +108,13 @@ class Integrator(BaseIntegrator):
             {
                 "name": "source",
                 "connector.class": "org.apache.kafka.connect.mirror.MirrorSourceConnector",
-                "clusters": "sourcemsc,targetmsc",
-                "source.cluster.alias": "sourcemsc",
-                "target.cluster.alias": "targetmsc",
+                "clusters": f"{source_cluster_alias},{target_cluster_alias}",
+                "source.cluster.alias": source_cluster_alias,
+                "target.cluster.alias": target_cluster_alias,
                 "topics": ".*",
                 "groups": ".*",
-                "topics.exclude": ".*[-.]internal,.*.replica,__.*,connect-.*",
+                "replication.policy.separator": ".replica.",
+                "topics.exclude": f".*[-.]internal,.*replica.*,__.*,connect-.*,{target_cluster_alias}.*",
                 "groups.exclude": "console-consumer-.*, connect-.*, __.*",
                 "offset-syncs.topic.location": "target",
                 "offset-syncs.topic.replication.factor": -1,
@@ -144,33 +143,28 @@ class Integrator(BaseIntegrator):
         #         "emit.heartbeats.enabled": True,
         #         "consumer.auto.offset.reset": "earliest",
         #     }
-        #     | prefix_policy
         #     | common_auth
         # )
 
-        mirror_checkpoint = (
-            {
-                "name": "checkpoint",
-                "connector.class": "org.apache.kafka.connect.mirror.MirrorCheckpointConnector",
-                "clusters": "sourcecpc,targetcpc",
-                "source.cluster.alias": "sourcecpc",
-                "target.cluster.alias": "targetcpc",
-                "consumer.auto.offset.reset": "earliest",
-                "checkpoints.topic.replication.factor": -1,
-                "emit.checkpoints.enabled": True,
-                "emit.checkpoints.interval.seconds": 5,
-                "refresh.groups.enabled": True,
-                "refresh.groups.interval.seconds": 5,
-                "sync.group.offsets.enabled": True,
-                "sync.group.offsets.interval.seconds": 5,
-                "producer.override.bootstrap.servers": target_data.get("endpoints"),
-                "producer.override.security.protocol": "SASL_PLAINTEXT",
-                "producer.override.sasl.mechanism": "SCRAM-SHA-512",
-                "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
-            }
-            | prefix_policy
-            | common_auth
-        )
+        mirror_checkpoint = {
+            "name": "checkpoint",
+            "connector.class": "org.apache.kafka.connect.mirror.MirrorCheckpointConnector",
+            "clusters": f"{source_cluster_alias},{target_cluster_alias}",
+            "source.cluster.alias": source_cluster_alias,
+            "target.cluster.alias": target_cluster_alias,
+            "consumer.auto.offset.reset": "earliest",
+            "checkpoints.topic.replication.factor": -1,
+            "emit.checkpoints.enabled": True,
+            "emit.checkpoints.interval.seconds": 5,
+            "refresh.groups.enabled": True,
+            "refresh.groups.interval.seconds": 5,
+            "sync.group.offsets.enabled": True,
+            "sync.group.offsets.interval.seconds": 5,
+            "producer.override.bootstrap.servers": target_data.get("endpoints"),
+            "producer.override.security.protocol": "SASL_PLAINTEXT",
+            "producer.override.sasl.mechanism": "SCRAM-SHA-512",
+            "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
+        } | common_auth
 
         self.configure([mirror_source, mirror_checkpoint])
 
@@ -190,11 +184,3 @@ class Integrator(BaseIntegrator):
         return self.helpers.check_data_interfaces_ready(
             [self.SOURCE_REL, self.TARGET_REL, self.CONNECT_REL]
         )
-
-    def _create_internal_topics(self, source_data, target_data):
-        """Creates the internal topics for the MirrorMaker connector.
-
-        These topics are as follows:
-            - on source cluster: heartbeats, mm2-offset-syncs.target.internal, target.checkpoints.internal
-        """
-        pass
