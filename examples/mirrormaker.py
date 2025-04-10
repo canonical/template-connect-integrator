@@ -4,6 +4,7 @@
 
 """Basic implementation of an Integrator for Kafka MirrorMaker."""
 
+import logging
 
 from charms.data_platform_libs.v0.data_interfaces import (
     KafkaRequirerData,
@@ -14,36 +15,26 @@ from typing_extensions import override
 
 from workload import NotRequiredPluginServer
 
+logger = logging.getLogger(__name__)
+
 
 class MirrormakerConfigFormatter(BaseConfigFormatter):
     """Basic implementation for Kafka MirrorMaker configuration."""
 
-    # configurable options
-    topics = ConfigOption(json_key="topics", default=".*")
-    topic_replication_factor = ConfigOption(json_key="replication.factor", default=-1)
-    topics_exclude = ConfigOption(
-        json_key="topics.exclude",
-        default=".*[-.]internal,.*.replica,__.*,.*-config,.*-status,.*-offset",
-    )
+    # Configurable options
+    replication_factor = ConfigOption(json_key="replication.factor", default=-1)
     tasks_max = ConfigOption(json_key="tasks.max", default=1, configurable=True)
 
-    # non-configurable options
-    clusters = ConfigOption(json_key="clusters", default="source,target", configurable=False)
-    source_cluster_alias = ConfigOption(
-        json_key="source.cluster.alias", default="source", configurable=False
+    # Non-configurable options
+    key_converter = ConfigOption(
+        json_key="key.converter",
+        default="org.apache.kafka.connect.converters.ByteArrayConverter",
+        configurable=True,
     )
-    target_cluster_alias = ConfigOption(
-        json_key="target.cluster.alias", default="target", configurable=False
-    )
-    auto_create = ConfigOption(json_key="auto.create", default=True, configurable=False)
-    emit_heartbeats = ConfigOption(
-        json_key="emit.heartbeats.enabled", default=True, configurable=False
-    )
-    emit_checkpoints = ConfigOption(
-        json_key="emit.checkpoints.enabled", default=True, configurable=False
-    )
-    emit_heartbeats = ConfigOption(
-        json_key="emit.heartbeats.enabled", default=True, configurable=False
+    value_converter = ConfigOption(
+        json_key="value.converter",
+        default="org.apache.kafka.connect.converters.ByteArrayConverter",
+        configurable=True,
     )
 
     # General charm config
@@ -94,6 +85,10 @@ class Integrator(BaseIntegrator):
         source_data = self.helpers.fetch_all_relation_data(self.SOURCE_REL)
         target_data = self.helpers.fetch_all_relation_data(self.TARGET_REL)
 
+        # TODO
+        # Creates the internal topics for the MirrorMaker connector
+        self._create_internal_topics(source_data, target_data)
+
         prefix_policy = {}
         if not self.prefix_topics:
             prefix_policy = {
@@ -115,59 +110,79 @@ class Integrator(BaseIntegrator):
             {
                 "name": "source",
                 "connector.class": "org.apache.kafka.connect.mirror.MirrorSourceConnector",
+                "clusters": "sourcemsc,targetmsc",
+                "source.cluster.alias": "sourcemsc",
+                "target.cluster.alias": "targetmsc",
+                "topics": ".*",
+                "groups": ".*",
+                "topics.exclude": ".*[-.]internal,.*.replica,__.*,connect-.*",
+                "groups.exclude": "console-consumer-.*, connect-.*, __.*",
+                "offset-syncs.topic.location": "target",
+                "offset-syncs.topic.replication.factor": -1,
                 "sync.topic.acls.enabled": True,
                 "sync.topic.configs.enabled": True,
                 "sync.topic.configs.interval.seconds": 5,
                 "refresh.topics.enabled": True,
                 "refresh.topics.interval.seconds": 5,
                 "refresh.groups.enabled": True,
-                "refresh.groups.interval.seconds": 10,
-                "groups.exclude": "console-consumer-.*,connect-.*,__.*",
+                "refresh.groups.interval.seconds": 5,
                 "consumer.auto.offset.reset": "earliest",
-                "producer.max.block.ms": 10000,
-                "producer.linger.ms": 500,
-                "producer.retry.backoff.ms": 1000,
+                "producer.enable.idempotence": "true",
+                "producer.override.bootstrap.servers": target_data.get("endpoints"),
+                "producer.override.security.protocol": "SASL_PLAINTEXT",
+                "producer.override.sasl.mechanism": "SCRAM-SHA-512",
+                "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
             }
             | prefix_policy
             | common_auth
         )
 
-        mirror_heartbeat = (
-            {
-                "name": "heartbeat",
-                "connector.class": "org.apache.kafka.connect.mirror.MirrorHeartbeatConnector",
-                "emit.heartbeats.enabled": True,
-                "consumer.auto.offset.reset": "earliest",
-            }
-            | prefix_policy
-            | common_auth
-        )
+        # mirror_heartbeat = (
+        #     {
+        #         "name": "heartbeat",
+        #         "connector.class": "org.apache.kafka.connect.mirror.MirrorHeartbeatConnector",
+        #         "emit.heartbeats.enabled": True,
+        #         "consumer.auto.offset.reset": "earliest",
+        #     }
+        #     | prefix_policy
+        #     | common_auth
+        # )
 
-        # TODO: to add?
-        # "key.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
-        # "value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
         mirror_checkpoint = (
             {
                 "name": "checkpoint",
                 "connector.class": "org.apache.kafka.connect.mirror.MirrorCheckpointConnector",
-                "groups.exclude": "console-consumer-.*, connect-.*, __.*",
+                "clusters": "sourcecpc,targetcpc",
+                "source.cluster.alias": "sourcecpc",
+                "target.cluster.alias": "targetcpc",
                 "consumer.auto.offset.reset": "earliest",
+                "checkpoints.topic.replication.factor": -1,
+                "emit.checkpoints.enabled": True,
+                "emit.checkpoints.interval.seconds": 5,
                 "refresh.groups.enabled": True,
                 "refresh.groups.interval.seconds": 5,
+                "sync.group.offsets.enabled": True,
                 "sync.group.offsets.interval.seconds": 5,
-                "producer.linger.ms": 500,
-                "producer.retry.backoff.ms": 1000,
-                "producer.max.block.ms": 10000,
+                "producer.override.bootstrap.servers": target_data.get("endpoints"),
+                "producer.override.security.protocol": "SASL_PLAINTEXT",
+                "producer.override.sasl.mechanism": "SCRAM-SHA-512",
+                "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
             }
             | prefix_policy
             | common_auth
         )
 
-        self.configure([mirror_source, mirror_checkpoint, mirror_heartbeat])
+        self.configure([mirror_source, mirror_checkpoint])
 
     @override
     def teardown(self):
-        pass
+        if not self._peer_relation:
+            return
+
+        logger.info("Removing configuration from peer relation")
+        self._peer_unit_interface.update_relation_data(
+            self._peer_relation.id, data={self.CONFIG_SECRET_FIELD: ""}
+        )
 
     @property
     @override
@@ -175,3 +190,11 @@ class Integrator(BaseIntegrator):
         return self.helpers.check_data_interfaces_ready(
             [self.SOURCE_REL, self.TARGET_REL, self.CONNECT_REL]
         )
+
+    def _create_internal_topics(self, source_data, target_data):
+        """Creates the internal topics for the MirrorMaker connector.
+
+        These topics are as follows:
+            - on source cluster: heartbeats, mm2-offset-syncs.target.internal, target.checkpoints.internal
+        """
+        pass
