@@ -84,6 +84,7 @@ class IntegratorCharm(CharmBase):
 
         # NOTE: When publishing MirrorMaker integrator to CH, ensure to publish with an empty.tar so as not to break here
         if self.integrator.server.plugin_url == PLUGIN_URL_NOT_REQUIRED:
+            self.integrator.patch_connector()
             return
 
         resource_path = None
