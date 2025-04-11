@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 import re
 import socket
@@ -36,6 +37,9 @@ JDBC_SINK_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSinkConnector"
 OPENSEARCH_CONNECTOR_LINK = "https://github.com/Aiven-Open/opensearch-connector-for-apache-kafka/releases/download/v3.1.1/opensearch-connector-for-apache-kafka-3.1.1.tar"
 S3_CONNECTOR_LINK = "https://github.com/Aiven-Open/cloud-storage-connectors-for-apache-kafka/releases/download/v3.1.0/s3-sink-connector-for-apache-kafka-3.1.0.tar"
 S3_CONNECTOR_CLASS = "io.aiven.kafka.connect.s3.AivenKafkaConnectS3SinkConnector"
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -90,6 +94,24 @@ def download_file(url: str, dst_path: str) -> None:
             file.write(chunk)
 
 
+async def get_kafka_password(ops_test: OpsTest, kafka_application: str = KAFKA_APP) -> str:
+    """Gets the credentials for the Kafka application."""
+    # can retrieve from any unit running unit so we pick the first
+    unit_name = ops_test.model.applications[kafka_application].units[0].name
+    unit_id = unit_name.split("/")[1]
+
+    action = await ops_test.model.units.get(f"{kafka_application}/{unit_id}").run_action(
+        "get-admin-credentials"
+    )
+    action = await action.wait()
+    try:
+        password = action.results["password"]
+        return password
+    except KeyError:
+        logger.error("Failed to get password. Action %s. Results %s", action, action.results)
+        return None
+
+
 async def get_secret_data(ops_test: OpsTest, label_pattern: str) -> dict:
     """Gets data content of the secret matching the provided label pattern."""
     _, raw, _ = await ops_test.juju("secrets", "--format", "json")
@@ -117,10 +139,8 @@ async def assert_messages_produced(
     ops_test: OpsTest, kafka_app: str, topic: str = "test", no_messages: int = 1
 ) -> None:
     """Asserts `no_messages` has been produced to `topic`."""
-    data = await get_secret_data(ops_test, r"kafka-client\.[0-9]+\.user\.secret")
-
-    username = data["username"]
-    password = data["password"]
+    username = "admin"
+    password = await get_kafka_password(ops_test, kafka_app)
     server = await get_unit_ipv4_address(ops_test, ops_test.model.applications[kafka_app].units[0])
 
     messages = []

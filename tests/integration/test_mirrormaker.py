@@ -34,7 +34,7 @@ async def test_deploy_cluster(
     deploy_kafka_passive,
 ):
     """Deploys kafka-connect charm along kafka (in KRaft mode)."""
-    await ops_test.model.add_relation(CONNECT_APP, KAFKA_APP)
+    await ops_test.model.integrate(CONNECT_APP, KAFKA_APP_B)
 
     async with ops_test.fast_forward(fast_interval="60s"):
         await ops_test.model.wait_for_idle(
@@ -45,10 +45,12 @@ async def test_deploy_cluster(
 @pytest.mark.abort_on_fail
 async def test_deploy_app(ops_test: OpsTest, app_charm):
     """Deploys active-passive scenario."""
+    mm_config = {"prefix_topics": "false"}
     await ops_test.model.deploy(
         app_charm.charm,
         application_name=MM_APP,
         resources={**app_charm.resources},
+        config=mm_config,
     )
 
     async with ops_test.fast_forward(fast_interval="60s"):
@@ -60,8 +62,8 @@ async def test_deploy_app(ops_test: OpsTest, app_charm):
 @pytest.mark.abort_on_fail
 async def test_activate_integrator(ops_test: OpsTest):
     """Checks integrator becomes active after related with active and passive ends of Kafka."""
-    await ops_test.model.add_relation(f"{MM_APP}:source", KAFKA_APP)
-    await ops_test.model.add_relation(f"{MM_APP}:target", KAFKA_APP_B)
+    await ops_test.model.integrate(f"{MM_APP}:source", KAFKA_APP)
+    await ops_test.model.integrate(f"{MM_APP}:target", KAFKA_APP_B)
     async with ops_test.fast_forward(fast_interval="60s"):
         await ops_test.model.wait_for_idle(
             apps=[MM_APP, KAFKA_APP, KAFKA_APP_B], idle_period=30, timeout=600
@@ -77,7 +79,7 @@ async def test_relate_with_connect_starts_integrator(ops_test: OpsTest):
     await produce_messages(ops_test, KAFKA_APP, topic="arnor", no_messages=100)
     logging.info("100 messages produced to topic arnor")
 
-    await ops_test.model.add_relation(MM_APP, CONNECT_APP)
+    await ops_test.model.integrate(MM_APP, CONNECT_APP)
 
     logging.info("Sleeping...")
     async with ops_test.fast_forward(fast_interval="20s"):
