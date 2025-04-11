@@ -29,12 +29,12 @@ class MirrormakerConfigFormatter(BaseConfigFormatter):
     key_converter = ConfigOption(
         json_key="key.converter",
         default="org.apache.kafka.connect.converters.ByteArrayConverter",
-        configurable=True,
+        configurable=False,
     )
     value_converter = ConfigOption(
         json_key="value.converter",
         default="org.apache.kafka.connect.converters.ByteArrayConverter",
-        configurable=True,
+        configurable=False,
     )
 
     # General charm config
