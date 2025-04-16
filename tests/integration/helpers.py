@@ -195,10 +195,9 @@ async def produce_messages(
     ops_test: OpsTest, kafka_app: str, topic: str = "test", no_messages: int = 1
 ) -> None:
     """Creates `topic` and produces `no_messages` to it."""
-    data = await get_secret_data(ops_test, r"kafka-client\.[0-9]+\.user\.secret")
-
-    username = data["username"]
-    password = data["password"]
+    # Using internal credentials for kafka
+    username = "admin"
+    password = await get_kafka_password(ops_test, kafka_app)
     server = await get_unit_ipv4_address(ops_test, ops_test.model.applications[kafka_app].units[0])
 
     config = {
