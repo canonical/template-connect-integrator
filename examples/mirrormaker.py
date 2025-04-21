@@ -24,8 +24,6 @@ class MirrormakerConfigFormatter(BaseConfigFormatter):
     # Configurable options
     replication_factor = ConfigOption(json_key="replication.factor", default=-1)
     tasks_max = ConfigOption(json_key="tasks.max", default=1, configurable=True)
-
-    # Non-configurable options
     key_converter = ConfigOption(
         json_key="key.converter",
         default="org.apache.kafka.connect.converters.ByteArrayConverter",
@@ -36,8 +34,21 @@ class MirrormakerConfigFormatter(BaseConfigFormatter):
         default="org.apache.kafka.connect.converters.ByteArrayConverter",
         configurable=True,
     )
+    # Non-configurable options
 
     # General charm config
+    topics = ConfigOption(
+        json_key="topics",
+        default=".*",
+        description="The topics to be replicated.",
+        mode="none",
+    )
+    groups = ConfigOption(
+        json_key="groups",
+        default=".*",
+        description="The groups to be replicated.",
+        mode="none",
+    )
     prefix_topics = ConfigOption(
         json_key="na",
         default=False,
@@ -61,6 +72,8 @@ class Integrator(BaseIntegrator):
         super().__init__(charm, plugin_server_args, plugin_server_kwargs)
         self.name = charm.app.name
         self.prefix_topics = bool(self.charm.config.get("prefix_topics", False))
+        self.topics = self.charm.config.get("topics", ".*")
+        self.groups = self.charm.config.get("groups", ".*")
         # Not used, but required by the Kafka relation. Will create an ACL on Kafka
         self.topic_name = "__mirrormaker-user"
 
@@ -111,8 +124,8 @@ class Integrator(BaseIntegrator):
                 "clusters": f"{source_cluster_alias},{target_cluster_alias}",
                 "source.cluster.alias": source_cluster_alias,
                 "target.cluster.alias": target_cluster_alias,
-                "topics": ".*",
-                "groups": ".*",
+                "topics": self.topics,
+                "groups": self.groups,
                 "replication.policy.separator": ".replica.",
                 "topics.exclude": f".*[-.]internal,.*replica.*,__.*,connect-.*,{target_cluster_alias}.*",
                 "groups.exclude": "console-consumer-.*, connect-.*, __.*",
@@ -136,6 +149,8 @@ class Integrator(BaseIntegrator):
             | common_auth
         )
 
+        # TODO: To be implemented in a follow-up PR
+        # Commented out for now, as it is not needed for the current implementation
         # mirror_heartbeat = (
         #     {
         #         "name": "heartbeat",
