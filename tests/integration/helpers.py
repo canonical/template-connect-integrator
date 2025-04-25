@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 import re
 import socket
@@ -19,6 +20,7 @@ CONNECT_CHANNEL = "latest/edge"
 CONNECT_ADMIN_USER = "admin"
 CONNECT_REST_PORT = 8083
 KAFKA_APP = "kafka"
+KAFKA_APP_B = "kafka-b"
 KAFKA_CHANNEL = "3/edge"
 MYSQL_APP = "mysql"
 MYSQL_CHANNEL = "8.0/stable"
@@ -33,6 +35,9 @@ PLUGIN_RESOURCE_KEY = "connect-plugin"
 JDBC_SOURCE_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSourceConnector"
 JDBC_SINK_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSinkConnector"
 S3_CONNECTOR_CLASS = "io.aiven.kafka.connect.s3.AivenKafkaConnectS3SinkConnector"
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -98,6 +103,23 @@ def download_file(url: str, dst_path: str) -> None:
             file.write(chunk)
 
 
+async def get_kafka_password(ops_test: OpsTest, kafka_application: str = KAFKA_APP) -> str:
+    """Gets the credentials for the Kafka application."""
+    # can retrieve from any unit running unit so we pick the first
+    action = (
+        await ops_test.model.applications[kafka_application]
+        .units[0]
+        .run_action("get-admin-credentials")
+    )
+    action = await action.wait()
+    try:
+        password = action.results["password"]
+        return password
+    except KeyError:
+        logger.error("Failed to get password. Action %s. Results %s", action, action.results)
+        return None
+
+
 async def get_secret_data(ops_test: OpsTest, label_pattern: str) -> dict:
     """Gets data content of the secret matching the provided label pattern."""
     _, raw, _ = await ops_test.juju("secrets", "--format", "json")
@@ -122,30 +144,39 @@ async def get_secret_data(ops_test: OpsTest, label_pattern: str) -> dict:
 
 
 async def assert_messages_produced(
-    ops_test: OpsTest, kafka_app: str, topic: str = "test", no_messages: int = 1
+    ops_test: OpsTest,
+    kafka_app: str,
+    topic: str = "test",
+    no_messages: int = 1,
+    consumer_group: str | None = None,
 ) -> None:
     """Asserts `no_messages` has been produced to `topic`."""
-    data = await get_secret_data(ops_test, r"kafka-client\.[0-9]+\.user\.secret")
-
-    username = data["username"]
-    password = data["password"]
+    username = "admin"
+    password = await get_kafka_password(ops_test, kafka_app)
     server = await get_unit_ipv4_address(ops_test, ops_test.model.applications[kafka_app].units[0])
 
-    consumer = kafka.KafkaConsumer(
-        topic,
-        bootstrap_servers=f"{server}:9092",
-        sasl_mechanism="SCRAM-SHA-512",
-        sasl_plain_username=username,
-        sasl_plain_password=password,
-        auto_offset_reset="earliest",
-        security_protocol="SASL_PLAINTEXT",
-        consumer_timeout_ms=5000,
-    )
-
     messages = []
-    for msg in consumer:
-        messages.append(msg.value)
+    try:
+        consumer = kafka.KafkaConsumer(
+            topic,
+            bootstrap_servers=f"{server}:9092",
+            sasl_mechanism="SCRAM-SHA-512",
+            sasl_plain_username=username,
+            sasl_plain_password=password,
+            auto_offset_reset="earliest",
+            security_protocol="SASL_PLAINTEXT",
+            consumer_timeout_ms=5000,
+            group_id=consumer_group,
+        )
 
+        for msg in consumer:
+            messages.append(msg.value)
+    except kafka.errors.UnknownTopicOrPartitionError:
+        pass
+
+    consumer.close()
+
+    logger.info("Messages consumed: %s", len(messages))
     assert len(messages) == no_messages
 
 
@@ -178,10 +209,9 @@ async def produce_messages(
     ops_test: OpsTest, kafka_app: str, topic: str = "test", no_messages: int = 1
 ) -> None:
     """Creates `topic` and produces `no_messages` to it."""
-    data = await get_secret_data(ops_test, r"kafka-client\.[0-9]+\.user\.secret")
-
-    username = data["username"]
-    password = data["password"]
+    # Using internal credentials for kafka
+    username = "admin"
+    password = await get_kafka_password(ops_test, kafka_app)
     server = await get_unit_ipv4_address(ops_test, ops_test.model.applications[kafka_app].units[0])
 
     config = {
@@ -208,3 +238,5 @@ async def produce_messages(
 
     for i in range(1, no_messages + 1):
         producer.send(topic, generate_random_message_with_schema(i))
+
+    producer.close()
