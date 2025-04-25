@@ -61,6 +61,7 @@ jobs:
           - integration-opensearch
           - integration-postgresql
           - integration-s3
+          - integration-mirrormaker
 
     name: ${{ matrix.tox-environments }} (VM)
     needs:

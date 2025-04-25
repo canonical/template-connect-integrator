@@ -161,25 +161,33 @@ class Integrator(BaseIntegrator):
         #     | common_auth
         # )
 
-        mirror_checkpoint = {
-            "name": "checkpoint",
-            "connector.class": "org.apache.kafka.connect.mirror.MirrorCheckpointConnector",
-            "clusters": f"{source_cluster_alias},{target_cluster_alias}",
-            "source.cluster.alias": source_cluster_alias,
-            "target.cluster.alias": target_cluster_alias,
-            "consumer.auto.offset.reset": "earliest",
-            "checkpoints.topic.replication.factor": -1,
-            "emit.checkpoints.enabled": True,
-            "emit.checkpoints.interval.seconds": 5,
-            "refresh.groups.enabled": True,
-            "refresh.groups.interval.seconds": 5,
-            "sync.group.offsets.enabled": True,
-            "sync.group.offsets.interval.seconds": 5,
-            "producer.override.bootstrap.servers": target_data.get("endpoints"),
-            "producer.override.security.protocol": "SASL_PLAINTEXT",
-            "producer.override.sasl.mechanism": "SCRAM-SHA-512",
-            "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
-        } | common_auth
+        mirror_checkpoint = (
+            {
+                "name": "checkpoint",
+                "connector.class": "org.apache.kafka.connect.mirror.MirrorCheckpointConnector",
+                "clusters": f"{source_cluster_alias},{target_cluster_alias}",
+                "source.cluster.alias": source_cluster_alias,
+                "target.cluster.alias": target_cluster_alias,
+                "groups": self.groups,
+                "groups.exclude": "console-consumer-.*, connect-.*, __.*",
+                "replication.policy.separator": ".replica.",
+                "consumer.auto.offset.reset": "earliest",
+                "offset-syncs.topic.location": "target",
+                "checkpoints.topic.replication.factor": -1,
+                "emit.checkpoints.enabled": True,
+                "emit.checkpoints.interval.seconds": 5,
+                "refresh.groups.enabled": True,
+                "refresh.groups.interval.seconds": 5,
+                "sync.group.offsets.enabled": True,
+                "sync.group.offsets.interval.seconds": 5,
+                "producer.override.bootstrap.servers": target_data.get("endpoints"),
+                "producer.override.security.protocol": "SASL_PLAINTEXT",
+                "producer.override.sasl.mechanism": "SCRAM-SHA-512",
+                "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
+            }
+            | common_auth
+            | prefix_policy
+        )
 
         self.configure([mirror_source, mirror_checkpoint])
 
