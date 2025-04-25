@@ -106,8 +106,10 @@ def download_file(url: str, dst_path: str) -> None:
 async def get_kafka_password(ops_test: OpsTest, kafka_application: str = KAFKA_APP) -> str:
     """Gets the credentials for the Kafka application."""
     # can retrieve from any unit running unit so we pick the first
-    action = await ops_test.model.applications[kafka_application].units[0].run_action(
-        "get-admin-credentials"
+    action = (
+        await ops_test.model.applications[kafka_application]
+        .units[0]
+        .run_action("get-admin-credentials")
     )
     action = await action.wait()
     try:
