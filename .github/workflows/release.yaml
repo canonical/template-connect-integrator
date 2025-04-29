@@ -97,6 +97,15 @@ jobs:
             substrate: vm
             data-interface: opensearch_client
             impl: opensearch
+          # mirrormaker
+          - name: mirrormaker-connect-integrator
+            substrate: vm
+            data-interface: kafka_client
+            impl: mirrormaker
+          - name: mirrormaker-connect-k8s-integrator
+            substrate: k8s
+            data-interface: kafka_client
+            impl: mirrormaker
 
     name: '${{ matrix.build-args.name }} - ${{ matrix.platform.name }}'
     needs:
