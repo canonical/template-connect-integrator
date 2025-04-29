@@ -6,32 +6,27 @@ name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MirrorMaker 
 display-name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MirrorMaker Integrator
 summary: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MirrorMaker Integrator
 description: The Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MirrorMaker Integrator charm enables the management of Apache Kafka Connect tasks to mirror and replicate topics from one Charmed Apache Kafka{{ "" if substrate == "vm" else " K8s" }} application to another.
-
 {%- elif impl == "s3" %}
 name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} S3 Integrator
 display-name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} S3 Integrator
 summary: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} S3 Integrator
 description: The Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} S3 Integrator charm enables the management of Apache Kafka Connect tasks to sink data from a Charmed Apache Kafka{{ "" if substrate == "vm" else " K8s" }} application to an S3-compatible storage volume.
-
 {%- elif impl == "opensearch" %}
 name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} OpenSearch Integrator
 display-name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} OpenSearch Integrator
 summary: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} OpenSearch Integrator
 description: The Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} OpenSearch Integrator charm enables the management of Apache Kafka Connect tasks to sink data from a Charmed Apache Kafka{{ "" if substrate == "vm" else " K8s" }} application to a Charmed OpenSearch{{ "" if substrate == "vm" else " K8s" }} application.
-
 {%- elif impl == "mysql" %}
 name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MySQL Integrator
 display-name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MySQL Integrator
 summary: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MySQL Integrator
 description: The Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MySQL Integrator charm enables the management of Apache Kafka Connect tasks to transfer data to/from a Charmed MySQL{{ "" if substrate == "vm" else " K8s" }} application and a Charmed Apache Kafka{{ "" if substrate == "vm" else " K8s" }} application over JDBC.
-
 {%- elif impl == "postgresql" %}
 name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} PostgreSQL Integrator
 display-name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} PostgreSQL Integrator
 summary: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} PostgreSQL Integrator
 description: The Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} PostgreSQL Integrator charm enables the management of Apache Kafka Connect tasks to transfer data to/from a Charmed PostgreSQL{{ "" if substrate == "vm" else " K8s" }} application and a Charmed Apache Kafka{{ "" if substrate == "vm" else " K8s" }} application over JDBC.
-
-{%- endif % }
+{%- endif %}
 
 source: https://github.com/canonical/template-connect-integrator
 issues: https://github.com/canonical/template-connect-integrator/issues
