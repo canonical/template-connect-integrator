@@ -190,7 +190,11 @@ jobs:
       - name: Download plugin
         run: |
           plugin_url=$(yq -r '.links."plugin-url"[0]' build/metadata.yaml)
-          wget $plugin_url -O build/plugin.tar
+          if [ ${{ matrix.build-args.impl }} == 'mirrormaker' ]; then
+            tar cvf build/plugin.tar --files-from /dev/null
+          else
+            wget $plugin_url -O build/plugin.tar
+          fi
       - name: Register
         run: charmcraft register ${{ matrix.build-args.name }}
         continue-on-error: true
