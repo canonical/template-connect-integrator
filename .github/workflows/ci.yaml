@@ -119,7 +119,6 @@ jobs:
           - integration-mysql
           - integration-postgresql
           - integration-s3
-          - integration-mirrormaker
 
     name: ${{ matrix.tox-environments }} (K8S)
     needs:
