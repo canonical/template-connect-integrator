@@ -240,3 +240,42 @@ async def produce_messages(
         producer.send(topic, generate_random_message_with_schema(i))
 
     producer.close()
+
+
+async def cleanup_mm_topics(
+    ops_test: OpsTest, kafka_apps: list[str] = [KAFKA_APP], extra_topics: list[str] = []
+) -> None:
+    """Cleans up the topics created by MirrorMaker."""
+    for kafka_app in kafka_apps:
+        username = "admin"
+        password = await get_kafka_password(ops_test, kafka_app)
+        server = await get_unit_ipv4_address(
+            ops_test, ops_test.model.applications[kafka_app].units[0]
+        )
+
+        config = {
+            "bootstrap_servers": f"{server}:9092",
+            "sasl_mechanism": "SCRAM-SHA-512",
+            "sasl_plain_username": username,
+            "sasl_plain_password": password,
+            "security_protocol": "SASL_PLAINTEXT",
+        }
+
+        admin_client = kafka.KafkaAdminClient(**config, client_id="test-admin")
+
+        # Delete topics created by MirrorMaker:
+        # active.checkpoints.internal, mm2-offset-syncs.replica.active.replica.internal
+        # TODO add heartbeat topic
+        internal_topics = [
+            topic for topic in admin_client.list_topics() if topic.endswith("internal")
+        ]
+        admin_client.delete_topics(internal_topics)
+        # Delete topics created by the tests
+        for topic in extra_topics:
+            try:
+                admin_client.delete_topics([topic])
+            except kafka.errors.UnknownTopicOrPartitionError:
+                logger.warning(f"Expected topic {topic} not found, skipping deletion.")
+                continue
+
+        admin_client.close()
