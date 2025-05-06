@@ -97,6 +97,15 @@ jobs:
             substrate: vm
             data-interface: opensearch_client
             impl: opensearch
+          # mirrormaker
+          - name: mirrormaker-connect-integrator
+            substrate: vm
+            data-interface: kafka_client
+            impl: mirrormaker
+          - name: mirrormaker-connect-k8s-integrator
+            substrate: k8s
+            data-interface: kafka_client
+            impl: mirrormaker
 
     name: '${{ matrix.build-args.name }} - ${{ matrix.platform.name }}'
     needs:
@@ -180,8 +189,12 @@ jobs:
           if-no-files-found: error
       - name: Download plugin
         run: |
-          plugin_url=$(yq -r '.links."plugin-url"[0]' build/metadata.yaml)
-          wget $plugin_url -O build/plugin.tar
+          if [ ${{ matrix.build-args.impl }} == 'mirrormaker' ]; then
+            tar cvf build/plugin.tar --files-from /dev/null
+          else
+            plugin_url=$(yq -r '.links."plugin-url"[0]' build/metadata.yaml)
+            wget $plugin_url -O build/plugin.tar
+          fi
       - name: Register
         run: charmcraft register ${{ matrix.build-args.name }}
         continue-on-error: true
