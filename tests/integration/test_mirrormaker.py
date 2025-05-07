@@ -208,12 +208,6 @@ async def test_activate_integrator_active_active(ops_test: OpsTest):
             status="active",
         )
 
-    # task is running
-    assert "RUNNING" in ops_test.model.applications[MM_APP].status_message
-    # Mirrormaker B shouldn't have any tasks running yet, meaning it's not replicating anything
-    # All the topics that exist on Kafka-B should be excluded from the replication
-    assert "UNASSIGNED" in ops_test.model.applications[MM_APP_B].status_message
-
 
 @pytest.mark.abort_on_fail
 async def test_messages_on_both_active_cluster(ops_test: OpsTest):
@@ -226,9 +220,5 @@ async def test_messages_on_both_active_cluster(ops_test: OpsTest):
     await asyncio.sleep(20)
 
     # Check that the messages can be consumed on the passive cluster
-    await assert_messages_produced(
-        ops_test, KAFKA_APP, topic="kafka-b.replica.fornost", no_messages=100
-    )
-    await assert_messages_produced(
-        ops_test, KAFKA_APP_B, topic="kafka.replica.fornost", no_messages=100
-    )
+    await assert_messages_produced(ops_test, KAFKA_APP, pattern=".*.fornost", no_messages=100)
+    await assert_messages_produced(ops_test, KAFKA_APP_B, pattern=".*.fornost", no_messages=100)

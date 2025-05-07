@@ -149,6 +149,7 @@ async def assert_messages_produced(
     topic: str = "test",
     no_messages: int = 1,
     consumer_group: str | None = None,
+    pattern: str | None = None,
 ) -> None:
     """Asserts `no_messages` has been produced to `topic`."""
     username = "admin"
@@ -168,6 +169,8 @@ async def assert_messages_produced(
             consumer_timeout_ms=5000,
             group_id=consumer_group,
         )
+        if pattern:
+            consumer.subscribe(pattern=pattern)
 
         for msg in consumer:
             messages.append(msg.value)
