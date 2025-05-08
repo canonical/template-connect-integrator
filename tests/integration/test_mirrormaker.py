@@ -83,7 +83,7 @@ async def test_activate_integrator(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_relate_with_connect_starts_integrator(ops_test: OpsTest):
+async def test_relate_with_connect_starts_integrator(ops_test: OpsTest, kafka_dns_resolver):
     """Checks source integrator task starts after relation with Kafka Connect."""
     await produce_messages(ops_test, KAFKA_APP, topic="arnor", no_messages=100)
     logging.info("100 messages produced to topic arnor")
@@ -101,7 +101,7 @@ async def test_relate_with_connect_starts_integrator(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_consume_messages_on_passive_cluster(ops_test: OpsTest):
+async def test_consume_messages_on_passive_cluster(ops_test: OpsTest, kafka_dns_resolver):
     """Produce messages to a Kafka topic."""
     # Give some time for the messages to be replicated
     await asyncio.sleep(10)
@@ -111,7 +111,7 @@ async def test_consume_messages_on_passive_cluster(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_consumer_groups(ops_test: OpsTest):
+async def test_consumer_groups(ops_test: OpsTest, kafka_dns_resolver):
     """Produce messages to a Kafka topic, and check that the consumer groups are replicated."""
     # Consume messages on the active cluster, using the consumer group this time
     await assert_messages_produced(
@@ -132,7 +132,7 @@ async def test_consumer_groups(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_remove_relation(ops_test: OpsTest):
+async def test_remove_relation(ops_test: OpsTest, kafka_dns_resolver):
     """Remove mm relation and check that messages are not replicated anymore."""
     check_output(
         f"JUJU_MODEL={ops_test.model_full_name} juju remove-relation {MM_APP} {CONNECT_APP}",
@@ -210,7 +210,7 @@ async def test_activate_integrator_active_active(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_messages_on_both_active_cluster(ops_test: OpsTest):
+async def test_messages_on_both_active_cluster(ops_test: OpsTest, kafka_dns_resolver):
     """Produce messages to a Kafka topic."""
     await produce_messages(ops_test, KAFKA_APP, topic="fornost", no_messages=100)
     await produce_messages(ops_test, KAFKA_APP_B, topic="fornost", no_messages=100)
