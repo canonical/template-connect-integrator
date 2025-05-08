@@ -4,13 +4,16 @@
 
 import asyncio
 import logging
+from subprocess import PIPE, check_output
 
 import pytest
 from helpers import (
     CONNECT_APP,
+    CONNECT_CHANNEL,
     KAFKA_APP,
     KAFKA_APP_B,
     assert_messages_produced,
+    cleanup_mm_topics,
     produce_messages,
 )
 from pytest_operator.plugin import OpsTest
@@ -18,11 +21,17 @@ from pytest_operator.plugin import OpsTest
 logger = logging.getLogger(__name__)
 
 MM_APP = "mirrormaker"
-PRODUCER_APP = "producer"
+
+# Used for active-active tests
+MM_APP_B = "mirrormaker-b"
+CONNECT_APP_B = "kafka-connect-b"
 
 
 # Deployment with KAFKA A and KAFKA B. These two charms will be used to test active-passive and
 # active-active replication. Kafka A will also be used as connect backend.
+
+
+# ----------- ACTIVE-PASSIVE TESTS -----------
 
 
 @pytest.mark.abort_on_fail
@@ -95,7 +104,7 @@ async def test_relate_with_connect_starts_integrator(ops_test: OpsTest):
 async def test_consume_messages_on_passive_cluster(ops_test: OpsTest):
     """Produce messages to a Kafka topic."""
     # Give some time for the messages to be replicated
-    await asyncio.sleep(120)
+    await asyncio.sleep(10)
 
     # Check that the messages can be consumed on the passive cluster
     await assert_messages_produced(ops_test, KAFKA_APP_B, topic="arnor", no_messages=100)
@@ -120,3 +129,96 @@ async def test_consumer_groups(ops_test: OpsTest):
     await assert_messages_produced(
         ops_test, KAFKA_APP_B, topic="arnor", no_messages=40, consumer_group="arnor-1"
     )
+
+
+@pytest.mark.abort_on_fail
+async def test_remove_relation(ops_test: OpsTest):
+    """Remove mm relation and check that messages are not replicated anymore."""
+    check_output(
+        f"JUJU_MODEL={ops_test.model_full_name} juju remove-relation {MM_APP} {CONNECT_APP}",
+        stderr=PIPE,
+        shell=True,
+        universal_newlines=True,
+    )
+
+    await ops_test.model.wait_for_idle(apps=[MM_APP, CONNECT_APP], idle_period=30, timeout=600)
+
+    # Check that the messages are not replicated anymore
+    await produce_messages(ops_test, KAFKA_APP, topic="angmar", no_messages=100)
+
+    await asyncio.sleep(10)
+
+    # Check that the messages are not replicated on the passive cluster
+    await assert_messages_produced(ops_test, KAFKA_APP_B, topic="angmar", no_messages=0)
+
+    # Reset state for next tests
+    await cleanup_mm_topics(ops_test, kafka_apps=[KAFKA_APP_B], extra_topics=["arnor"])
+
+
+# ----------- ACTIVE-ACTIVE TESTS -----------
+
+
+@pytest.mark.abort_on_fail
+async def test_deploy_active_active(ops_test: OpsTest, substrate, app_charm):
+    """Deploys active-active scenario."""
+    mm_config = {"prefix_topics": "true"}
+    await ops_test.model.deploy(
+        app_charm.charm,
+        application_name=MM_APP_B,
+        resources={**app_charm.resources},
+        config=mm_config,
+    )
+
+    await ops_test.model.deploy(
+        "kafka-connect" if substrate == "vm" else "kafka-connect-k8s",
+        channel=CONNECT_CHANNEL,
+        application_name=CONNECT_APP_B,
+        num_units=1,
+    )
+    # Initial mirrormaker integratior also needs to use prefixes now
+    await ops_test.model.applications[MM_APP].set_config(mm_config)
+
+    # This second deployment of mirrormaker will switch the relation and use KAFKA_APP_B as source
+    # This connect instance will use the passive (now KAFKA_APP) end as it's backend
+    await ops_test.model.integrate(CONNECT_APP_B, KAFKA_APP)
+    await ops_test.model.integrate(f"{MM_APP_B}:source", KAFKA_APP_B)
+    await ops_test.model.integrate(f"{MM_APP_B}:target", KAFKA_APP)
+
+    async with ops_test.fast_forward(fast_interval="60s"):
+        await ops_test.model.wait_for_idle(
+            apps=[CONNECT_APP_B, MM_APP_B, KAFKA_APP, KAFKA_APP_B], idle_period=30, timeout=600
+        )
+
+    # should still be in blocked mode because it needs kafka-connect relation
+    assert ops_test.model.applications[MM_APP_B].status == "blocked"
+
+
+@pytest.mark.abort_on_fail
+async def test_activate_integrator_active_active(ops_test: OpsTest):
+    """Checks integrator becomes active after related with active and passive ends of Kafka."""
+    await ops_test.model.integrate(MM_APP, CONNECT_APP)
+    await ops_test.model.integrate(MM_APP_B, CONNECT_APP_B)
+
+    logging.info("Sleeping...")
+    async with ops_test.fast_forward(fast_interval="20s"):
+        await ops_test.model.wait_for_idle(
+            apps=[MM_APP, CONNECT_APP, MM_APP_B, CONNECT_APP_B],
+            idle_period=60,
+            timeout=600,
+            status="active",
+        )
+
+
+@pytest.mark.abort_on_fail
+async def test_messages_on_both_active_cluster(ops_test: OpsTest):
+    """Produce messages to a Kafka topic."""
+    await produce_messages(ops_test, KAFKA_APP, topic="fornost", no_messages=100)
+    await produce_messages(ops_test, KAFKA_APP_B, topic="fornost", no_messages=100)
+    logging.info("100 messages produced to topic fornost")
+
+    # Give some time for the messages to be replicated
+    await asyncio.sleep(20)
+
+    # Check that the messages can be consumed on the passive cluster
+    await assert_messages_produced(ops_test, KAFKA_APP, pattern=".*.fornost", no_messages=100)
+    await assert_messages_produced(ops_test, KAFKA_APP_B, pattern=".*.fornost", no_messages=100)
