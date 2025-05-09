@@ -9,7 +9,7 @@ from charms.data_platform_libs.v0.data_interfaces import (
     OpenSearchRequiresData,
     OpenSearchRequiresEventHandlers,
 )
-from charms.kafka_connect.v0.integrator import BaseConfigFormatter, BaseIntegrator, ConfigOption
+from kafkacl import BaseConfigFormatter, BaseIntegrator, ConfigOption
 from typing_extensions import override
 
 from workload import PluginServer

@@ -5,7 +5,7 @@
 """Basic implementation of a Kafka Connect Integrator."""
 
 
-from charms.kafka_connect.v0.integrator import BaseConfigFormatter, BaseIntegrator
+from kafkacl import BaseConfigFormatter, BaseIntegrator
 from typing_extensions import override
 
 from literals import CONNECT_REL
