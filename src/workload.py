@@ -14,13 +14,13 @@ from typing import BinaryIO, Mapping
 
 import requests
 from charms.data_platform_libs.v0.data_interfaces import PLUGIN_URL_NOT_REQUIRED
-from charms.kafka_connect.v0.integrator import BasePluginServer
 from charms.operator_libs_linux.v1.systemd import (
     daemon_reload,
     service_restart,
     service_running,
     service_stop,
 )
+from kafkacl import BasePluginServer
 from ops import Container, pebble
 from tenacity import (
     retry,

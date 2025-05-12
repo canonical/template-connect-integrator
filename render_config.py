@@ -14,7 +14,7 @@ from types import ModuleType
 from typing import cast
 
 import yaml
-from charms.kafka_connect.v0.integrator import BaseConfigFormatter
+from kafkacl import BaseConfigFormatter
 
 
 @dataclass
