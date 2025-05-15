@@ -178,12 +178,12 @@ class Integrator(BaseIntegrator):
     @cached_property
     def source_tls_enabled(self) -> bool:
         """Return whether TLS is enabled for the source cluster."""
-        return bool(self.source_data.get("tls", False))
+        return bool(self.source_data.get("tls", "disabled") == "enabled")
 
     @cached_property
     def target_tls_enabled(self) -> bool:
         """Return whether TLS is enabled for the target cluster."""
-        return bool(self.target_data.get("tls", False))
+        return bool(self.target_data.get("tls", "disabled") == "enabled")
 
     @override
     def setup(self) -> None:

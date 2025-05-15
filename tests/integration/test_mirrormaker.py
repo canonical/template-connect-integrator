@@ -12,6 +12,7 @@ from helpers import (
     CONNECT_CHANNEL,
     KAFKA_APP,
     KAFKA_APP_B,
+    TLS_APP,
     assert_messages_produced,
     cleanup_mm_topics,
     produce_messages,
@@ -222,3 +223,13 @@ async def test_messages_on_both_active_cluster(ops_test: OpsTest, kafka_dns_reso
     # Check that the messages can be consumed on the passive cluster
     await assert_messages_produced(ops_test, KAFKA_APP, pattern=".*.fornost", no_messages=100)
     await assert_messages_produced(ops_test, KAFKA_APP_B, pattern=".*.fornost", no_messages=100)
+
+
+@pytest.mark.abort_on_fail
+async def test_tls(ops_test: OpsTest, deploy_tls):
+    """Deploy certificates charm and integrate with Connect and the Kafka clusters."""
+    tls_config = {"ca-common-name": "kafka"}
+    await ops_test.model.deploy(
+        TLS_APP, channel="stable", config=tls_config, series="jammy", revision=155
+    )
+    await ops_test.model.wait_for_idle(apps=[TLS_APP], idle_period=20)
