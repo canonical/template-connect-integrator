@@ -250,18 +250,6 @@ class Integrator(BaseIntegrator):
             | self.producer_override
         )
 
-        # TODO: To be implemented in a follow-up PR
-        # Commented out for now, as it is not needed for the current implementation
-        # mirror_heartbeat = (
-        #     {
-        #         "name": "heartbeat",
-        #         "connector.class": "org.apache.kafka.connect.mirror.MirrorHeartbeatConnector",
-        #         "emit.heartbeats.enabled": True,
-        #         "consumer.auto.offset.reset": "earliest",
-        #     }
-        #     | common_auth
-        # )
-
         self.configure([mirror_source, mirror_checkpoint])
 
     @override
