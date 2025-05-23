@@ -62,6 +62,7 @@ jobs:
           - integration-postgresql
           - integration-s3
           - integration-mirrormaker
+          - integration-mirrormaker-tls
 
     name: ${{ matrix.tox-environments }} (VM)
     needs:
@@ -106,7 +107,14 @@ jobs:
           fi
       - name: Run integration tests
         run: |
-          tox run -e ${{ matrix.tox-environments }} -- -m '${{ steps.select-tests.outputs.mark_expression }}'
+          extra_args=""
+          environment=${{ matrix.tox-environments }}
+          if [ $environment == "integration-mirrormaker-tls" ]
+          then
+             extra_args="--tls"
+             environment="integration-mirrormaker"
+          fi
+          tox run -e $environment -- -m '${{ steps.select-tests.outputs.mark_expression }}' $extra_args
         env:
           CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}
 
@@ -120,6 +128,7 @@ jobs:
           - integration-postgresql
           - integration-s3
           - integration-mirrormaker
+          - integration-mirrormaker-tls
 
     name: ${{ matrix.tox-environments }} (K8S)
     needs:
@@ -163,7 +172,15 @@ jobs:
             echo "mark_expression=not unstable" >> $GITHUB_OUTPUT
           fi
       - name: Run integration tests
-        run: tox run -e ${{ matrix.tox-environments }} -- -m '${{ steps.select-tests.outputs.mark_expression }}'
+        run: |
+          extra_args=""
+          environment=${{ matrix.tox-environments }}
+          if [ $environment == "integration-mirrormaker-tls" ]
+          then
+             extra_args="--tls"
+             environment="integration-mirrormaker"
+          fi
+          tox run -e $environment -- -m '${{ steps.select-tests.outputs.mark_expression }}' $extra_args
         env:
           CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}
           SUBSTRATE: k8s

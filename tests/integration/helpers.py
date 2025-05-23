@@ -31,6 +31,7 @@ MYSQL_DB = "test_db"
 POSTGRES_INTEGRATOR = "postgres-sink-integrator"
 POSTGRES_DB = "sink_db"
 PLUGIN_RESOURCE_KEY = "connect-plugin"
+TLS_APP = "self-signed-certificates"
 
 JDBC_SOURCE_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSourceConnector"
 JDBC_SINK_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSinkConnector"

@@ -132,3 +132,9 @@ async def kafka_dns_resolver(ops_test: OpsTest, substrate, monkeypatch):
     yield
 
     monkeypatch.undo()
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--tls", action="store_true", default=False, help="Enable TLS logic in tests."
+    )
