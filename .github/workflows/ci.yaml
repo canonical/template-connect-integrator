@@ -107,7 +107,7 @@ jobs:
           fi
       - name: Run integration tests
         run: |
-          local extra_args=""
+          extra_args=""
           if [ "${{ matrix.tox-environments }}" == "integration-mirrormaker-tls" ]
           then
              extra_args="--tls"
@@ -171,7 +171,7 @@ jobs:
           fi
       - name: Run integration tests
         run: |
-          local extra_args=""
+          extra_args=""
           if [ "${{ matrix.tox-environments }}" == "integration-mirrormaker-tls" ]
           then
              extra_args="--tls"
