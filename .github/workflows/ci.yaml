@@ -62,6 +62,7 @@ jobs:
           - integration-postgresql
           - integration-s3
           - integration-mirrormaker
+          - integration-mirrormkaer-tls
 
     name: ${{ matrix.tox-environments }} (VM)
     needs:
@@ -106,7 +107,12 @@ jobs:
           fi
       - name: Run integration tests
         run: |
-          tox run -e ${{ matrix.tox-environments }} -- -m '${{ steps.select-tests.outputs.mark_expression }}'
+          local extra_args=""
+          if [ "${{ tox-environment }}" == "integration-mirrormkaer-tls" ]
+          then
+             extra_args="--tls"
+          fi
+          tox run -e ${{ matrix.tox-environments }} -- -m '${{ steps.select-tests.outputs.mark_expression }}' $extra_args
         env:
           CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}
 

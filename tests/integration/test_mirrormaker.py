@@ -42,6 +42,7 @@ async def test_deploy_cluster(
     deploy_kafka,
     deploy_kafka_connect,
     deploy_kafka_passive,
+    request,
 ):
     """Deploys kafka-connect charm along kafka (in KRaft mode)."""
     await ops_test.model.integrate(CONNECT_APP, KAFKA_APP_B)
@@ -50,6 +51,23 @@ async def test_deploy_cluster(
         await ops_test.model.wait_for_idle(
             apps=[CONNECT_APP, KAFKA_APP, KAFKA_APP_B], timeout=3000, status="active"
         )
+
+    # TLS extra logic if --tls is set
+    if request.config.getoption("--tls"):
+        tls_config = {"ca-common-name": "kafka"}
+        await ops_test.model.deploy(
+            TLS_APP, channel="stable", config=tls_config, series="jammy", revision=155
+        )
+        await ops_test.model.wait_for_idle(apps=[TLS_APP], idle_period=20)
+
+        await ops_test.model.integrate(CONNECT_APP, TLS_APP)
+        await ops_test.model.integrate(KAFKA_APP, TLS_APP)
+        await ops_test.model.integrate(KAFKA_APP_B, TLS_APP)
+
+        async with ops_test.fast_forward(fast_interval="60s"):
+            await ops_test.model.wait_for_idle(
+                apps=[CONNECT_APP, KAFKA_APP, KAFKA_APP_B, TLS_APP], timeout=3000, status="active"
+            )
 
 
 @pytest.mark.abort_on_fail
@@ -160,7 +178,7 @@ async def test_remove_relation(ops_test: OpsTest, kafka_dns_resolver):
 
 
 @pytest.mark.abort_on_fail
-async def test_deploy_active_active(ops_test: OpsTest, substrate, app_charm):
+async def test_deploy_active_active(ops_test: OpsTest, substrate, app_charm, request):
     """Deploys active-active scenario."""
     mm_config = {"prefix_topics": "true"}
     await ops_test.model.deploy(
@@ -178,6 +196,9 @@ async def test_deploy_active_active(ops_test: OpsTest, substrate, app_charm):
     )
     # Initial mirrormaker integratior also needs to use prefixes now
     await ops_test.model.applications[MM_APP].set_config(mm_config)
+
+    if request.config.getoption("--tls"):
+        await ops_test.model.integrate(CONNECT_APP_B, TLS_APP)
 
     # This second deployment of mirrormaker will switch the relation and use KAFKA_APP_B as source
     # This connect instance will use the passive (now KAFKA_APP) end as it's backend
@@ -223,13 +244,3 @@ async def test_messages_on_both_active_cluster(ops_test: OpsTest, kafka_dns_reso
     # Check that the messages can be consumed on the passive cluster
     await assert_messages_produced(ops_test, KAFKA_APP, pattern=".*.fornost", no_messages=100)
     await assert_messages_produced(ops_test, KAFKA_APP_B, pattern=".*.fornost", no_messages=100)
-
-
-@pytest.mark.abort_on_fail
-async def test_tls(ops_test: OpsTest, deploy_tls):
-    """Deploy certificates charm and integrate with Connect and the Kafka clusters."""
-    tls_config = {"ca-common-name": "kafka"}
-    await ops_test.model.deploy(
-        TLS_APP, channel="stable", config=tls_config, series="jammy", revision=155
-    )
-    await ops_test.model.wait_for_idle(apps=[TLS_APP], idle_period=20)
