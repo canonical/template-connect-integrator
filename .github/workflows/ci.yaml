@@ -108,11 +108,13 @@ jobs:
       - name: Run integration tests
         run: |
           extra_args=""
-          if [ "${{ matrix.tox-environments }}" == "integration-mirrormaker-tls" ]
+          environment=${{ matrix.tox-environments }}
+          if [ $environment == "integration-mirrormaker-tls" ]
           then
              extra_args="--tls"
+             environment="integration-mirrormaker"
           fi
-          tox run -e ${{ matrix.tox-environments }} -- -m '${{ steps.select-tests.outputs.mark_expression }}' $extra_args
+          tox run -e $environment -- -m '${{ steps.select-tests.outputs.mark_expression }}' $extra_args
         env:
           CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}
 
@@ -172,11 +174,13 @@ jobs:
       - name: Run integration tests
         run: |
           extra_args=""
-          if [ "${{ matrix.tox-environments }}" == "integration-mirrormaker-tls" ]
+          environment=${{ matrix.tox-environments }}
+          if [ $environment == "integration-mirrormaker-tls" ]
           then
              extra_args="--tls"
+             environment="integration-mirrormaker"
           fi
-          tox run -e ${{ matrix.tox-environments }} -- -m '${{ steps.select-tests.outputs.mark_expression }}' $extra_args
+          tox run -e $environment -- -m '${{ steps.select-tests.outputs.mark_expression }}' $extra_args
         env:
           CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}
           SUBSTRATE: k8s
