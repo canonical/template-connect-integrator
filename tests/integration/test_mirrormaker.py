@@ -61,8 +61,8 @@ async def test_deploy_cluster(
         await ops_test.model.wait_for_idle(apps=[TLS_APP], idle_period=20)
 
         await ops_test.model.integrate(CONNECT_APP, TLS_APP)
-        await ops_test.model.integrate(KAFKA_APP, TLS_APP)
-        await ops_test.model.integrate(KAFKA_APP_B, TLS_APP)
+        await ops_test.model.integrate(f"{KAFKA_APP}:certificates", TLS_APP)
+        await ops_test.model.integrate(f"{KAFKA_APP_B}:certificates", TLS_APP)
 
         async with ops_test.fast_forward(fast_interval="60s"):
             await ops_test.model.wait_for_idle(
