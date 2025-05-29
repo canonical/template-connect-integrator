@@ -42,7 +42,7 @@ async def test_deploy_cluster(
     deploy_kafka,
     deploy_kafka_connect,
     deploy_kafka_passive,
-    request,
+    tls_enabled,
 ):
     """Deploys kafka-connect charm along kafka (in KRaft mode)."""
     await ops_test.model.integrate(CONNECT_APP, KAFKA_APP_B)
@@ -53,7 +53,7 @@ async def test_deploy_cluster(
         )
 
     # TLS extra logic if --tls is set
-    if request.config.getoption("--tls"):
+    if tls_enabled:
         tls_config = {"ca-common-name": "kafka"}
         await ops_test.model.deploy(
             TLS_APP, channel="stable", config=tls_config, series="jammy", revision=155
@@ -102,9 +102,11 @@ async def test_activate_integrator(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_relate_with_connect_starts_integrator(ops_test: OpsTest, kafka_dns_resolver):
+async def test_relate_with_connect_starts_integrator(
+    ops_test: OpsTest, kafka_dns_resolver, tls_enabled
+):
     """Checks source integrator task starts after relation with Kafka Connect."""
-    await produce_messages(ops_test, KAFKA_APP, topic="arnor", no_messages=100)
+    await produce_messages(ops_test, KAFKA_APP, topic="arnor", no_messages=100, tls=tls_enabled)
     logging.info("100 messages produced to topic arnor")
 
     await ops_test.model.integrate(MM_APP, CONNECT_APP)
@@ -120,25 +122,34 @@ async def test_relate_with_connect_starts_integrator(ops_test: OpsTest, kafka_dn
 
 
 @pytest.mark.abort_on_fail
-async def test_consume_messages_on_passive_cluster(ops_test: OpsTest, kafka_dns_resolver):
+async def test_consume_messages_on_passive_cluster(
+    ops_test: OpsTest, kafka_dns_resolver, tls_enabled
+):
     """Produce messages to a Kafka topic."""
     # Give some time for the messages to be replicated
     await asyncio.sleep(10)
 
     # Check that the messages can be consumed on the passive cluster
-    await assert_messages_produced(ops_test, KAFKA_APP_B, topic="arnor", no_messages=100)
+    await assert_messages_produced(
+        ops_test, KAFKA_APP_B, topic="arnor", no_messages=100, tls=tls_enabled
+    )
 
 
 @pytest.mark.abort_on_fail
-async def test_consumer_groups(ops_test: OpsTest, kafka_dns_resolver):
+async def test_consumer_groups(ops_test: OpsTest, kafka_dns_resolver, tls_enabled):
     """Produce messages to a Kafka topic, and check that the consumer groups are replicated."""
     # Consume messages on the active cluster, using the consumer group this time
     await assert_messages_produced(
-        ops_test, KAFKA_APP, topic="arnor", no_messages=100, consumer_group="arnor-1"
+        ops_test,
+        KAFKA_APP,
+        topic="arnor",
+        no_messages=100,
+        consumer_group="arnor-1",
+        tls=tls_enabled,
     )
 
     # Produce some more messages
-    await produce_messages(ops_test, KAFKA_APP_B, topic="arnor", no_messages=40)
+    await produce_messages(ops_test, KAFKA_APP_B, topic="arnor", no_messages=40, tls=tls_enabled)
 
     # Give some time for the messages to be replicated
     await asyncio.sleep(40)
@@ -146,12 +157,17 @@ async def test_consumer_groups(ops_test: OpsTest, kafka_dns_resolver):
     # Consumed messages on the passive cluster should only be the new ones,
     # using the same consumer group
     await assert_messages_produced(
-        ops_test, KAFKA_APP_B, topic="arnor", no_messages=40, consumer_group="arnor-1"
+        ops_test,
+        KAFKA_APP_B,
+        topic="arnor",
+        no_messages=40,
+        consumer_group="arnor-1",
+        tls=tls_enabled,
     )
 
 
 @pytest.mark.abort_on_fail
-async def test_remove_relation(ops_test: OpsTest, kafka_dns_resolver):
+async def test_remove_relation(ops_test: OpsTest, kafka_dns_resolver, tls_enabled):
     """Remove mm relation and check that messages are not replicated anymore."""
     check_output(
         f"JUJU_MODEL={ops_test.model_full_name} juju remove-relation {MM_APP} {CONNECT_APP}",
@@ -163,22 +179,26 @@ async def test_remove_relation(ops_test: OpsTest, kafka_dns_resolver):
     await ops_test.model.wait_for_idle(apps=[MM_APP, CONNECT_APP], idle_period=30, timeout=600)
 
     # Check that the messages are not replicated anymore
-    await produce_messages(ops_test, KAFKA_APP, topic="angmar", no_messages=100)
+    await produce_messages(ops_test, KAFKA_APP, topic="angmar", no_messages=100, tls=tls_enabled)
 
     await asyncio.sleep(10)
 
     # Check that the messages are not replicated on the passive cluster
-    await assert_messages_produced(ops_test, KAFKA_APP_B, topic="angmar", no_messages=0)
+    await assert_messages_produced(
+        ops_test, KAFKA_APP_B, topic="angmar", no_messages=0, tls=tls_enabled
+    )
 
     # Reset state for next tests
-    await cleanup_mm_topics(ops_test, kafka_apps=[KAFKA_APP_B], extra_topics=["arnor"])
+    await cleanup_mm_topics(
+        ops_test, kafka_apps=[KAFKA_APP_B], extra_topics=["arnor"], tls=tls_enabled
+    )
 
 
 # ----------- ACTIVE-ACTIVE TESTS -----------
 
 
 @pytest.mark.abort_on_fail
-async def test_deploy_active_active(ops_test: OpsTest, substrate, app_charm, request):
+async def test_deploy_active_active(ops_test: OpsTest, substrate, app_charm, tls_enabled):
     """Deploys active-active scenario."""
     mm_config = {"prefix_topics": "true"}
     await ops_test.model.deploy(
@@ -197,7 +217,7 @@ async def test_deploy_active_active(ops_test: OpsTest, substrate, app_charm, req
     # Initial mirrormaker integratior also needs to use prefixes now
     await ops_test.model.applications[MM_APP].set_config(mm_config)
 
-    if request.config.getoption("--tls"):
+    if tls_enabled:
         await ops_test.model.integrate(CONNECT_APP_B, TLS_APP)
 
     # This second deployment of mirrormaker will switch the relation and use KAFKA_APP_B as source
@@ -232,15 +252,21 @@ async def test_activate_integrator_active_active(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_messages_on_both_active_cluster(ops_test: OpsTest, kafka_dns_resolver):
+async def test_messages_on_both_active_cluster(ops_test: OpsTest, kafka_dns_resolver, tls_enabled):
     """Produce messages to a Kafka topic."""
-    await produce_messages(ops_test, KAFKA_APP, topic="fornost", no_messages=100)
-    await produce_messages(ops_test, KAFKA_APP_B, topic="fornost", no_messages=100)
+    await produce_messages(ops_test, KAFKA_APP, topic="fornost", no_messages=100, tls=tls_enabled)
+    await produce_messages(
+        ops_test, KAFKA_APP_B, topic="fornost", no_messages=100, tls=tls_enabled
+    )
     logging.info("100 messages produced to topic fornost")
 
     # Give some time for the messages to be replicated
     await asyncio.sleep(20)
 
     # Check that the messages can be consumed on the passive cluster
-    await assert_messages_produced(ops_test, KAFKA_APP, pattern=".*.fornost", no_messages=100)
-    await assert_messages_produced(ops_test, KAFKA_APP_B, pattern=".*.fornost", no_messages=100)
+    await assert_messages_produced(
+        ops_test, KAFKA_APP, pattern=".*.fornost", no_messages=100, tls=tls_enabled
+    )
+    await assert_messages_produced(
+        ops_test, KAFKA_APP_B, pattern=".*.fornost", no_messages=100, tls=tls_enabled
+    )

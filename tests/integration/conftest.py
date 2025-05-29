@@ -76,6 +76,7 @@ async def deploy_kafka(ops_test: OpsTest, substrate) -> None:
         application_name=KAFKA_APP,
         num_units=1,
         config={"roles": "broker,controller"},
+        trust=True if substrate == "k8s" else False,
     )
 
 
@@ -89,6 +90,7 @@ async def deploy_kafka_passive(ops_test: OpsTest, substrate) -> None:
         application_name=KAFKA_APP_B,
         num_units=1,
         config={"roles": "broker,controller"},
+        trust=True if substrate == "k8s" else False,
     )
 
 
@@ -132,6 +134,12 @@ async def kafka_dns_resolver(ops_test: OpsTest, substrate, monkeypatch):
     yield
 
     monkeypatch.undo()
+
+
+@pytest.fixture(scope="module")
+def tls_enabled(request):
+    """Fixture to check if TLS logic should be enabled in tests."""
+    return request.config.getoption("--tls")
 
 
 def pytest_addoption(parser):
