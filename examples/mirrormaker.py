@@ -127,52 +127,36 @@ class Integrator(BaseIntegrator):
         return self.helpers.fetch_all_relation_data(self.TARGET_REL)
 
     @cached_property
-    def common_auth(self):
+    def cluster_auth(self):
         """Return the common authentication configuration for both source and target clusters."""
-        common_auth = {
+        cluster_auth = {
             "source.cluster.bootstrap.servers": self.source_data.get("endpoints"),
             "target.cluster.bootstrap.servers": self.target_data.get("endpoints"),
-            "source.cluster.security.protocol": "SASL_PLAINTEXT",
-            "source.cluster.sasl.mechanism": "SCRAM-SHA-512",
+            "source.cluster.security.protocol": self.source_security_protocol,
+            "source.cluster.sasl.mechanism": self.sasl_mechanism,
             "source.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{self.source_data.get('username')}\" password=\"{self.source_data.get('password')}\";",
-            "target.cluster.security.protocol": "SASL_PLAINTEXT",
-            "target.cluster.sasl.mechanism": "SCRAM-SHA-512",
+            "target.cluster.security.protocol": self.target_security_protocol,
+            "target.cluster.sasl.mechanism": self.sasl_mechanism,
             "target.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{self.target_data.get('username')}\" password=\"{self.target_data.get('password')}\";",
         }
         if self.source_tls_enabled:
-            tls_config = {
-                "source.cluster.security.protocol": "SASL_SSL",
-                "source.cluster.ssl.truststore.location": self.connect_truststore_path,
-                "source.cluster.ssl.truststore.password": f"${{file:{self.connect_truststore_password_path}:{self.connect_truststore_password_key}}}",
-            }
-            common_auth.update(tls_config)
+            cluster_auth.update(self.tls_config("source.cluster"))
         if self.target_tls_enabled:
-            tls_config = {
-                "target.cluster.security.protocol": "SASL_SSL",
-                "target.cluster.ssl.truststore.location": self.connect_truststore_path,
-                "target.cluster.ssl.truststore.password": f"${{file:{self.connect_truststore_password_path}:{self.connect_truststore_password_key}}}",
-            }
-            common_auth.update(tls_config)
+            cluster_auth.update(self.tls_config("target.cluster"))
 
-        return common_auth
+        return cluster_auth
 
     @cached_property
     def producer_override(self):
         """Return the producer override configuration for target clusters."""
         producer_override = {
             "producer.override.bootstrap.servers": self.target_data.get("endpoints"),
-            "producer.override.security.protocol": "SASL_PLAINTEXT",
-            "producer.override.sasl.mechanism": "SCRAM-SHA-512",
+            "producer.override.security.protocol": self.target_security_protocol,
+            "producer.override.sasl.mechanism": self.sasl_mechanism,
             "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{self.target_data.get('username')}\" password=\"{self.target_data.get('password')}\";",
         }
         if self.target_tls_enabled:
-            producer_override.update(
-                {
-                    "producer.override.security.protocol": "SASL_SSL",
-                    "producer.override.ssl.truststore.location": self.connect_truststore_path,
-                    "producer.override.ssl.truststore.password": f"${{file:{self.connect_truststore_password_path}:{self.connect_truststore_password_key}}}",
-                }
-            )
+            producer_override.update(self.tls_config("producer.override"))
         return producer_override
 
     @cached_property
@@ -184,6 +168,28 @@ class Integrator(BaseIntegrator):
     def target_tls_enabled(self) -> bool:
         """Return whether TLS is enabled for the target cluster."""
         return bool(self.target_data.get("tls", "disabled") == "enabled")
+
+    @cached_property
+    def source_security_protocol(self) -> str:
+        """Return the security protocol for the source cluster."""
+        return "SASL_SSL" if self.source_tls_enabled else "SASL_PLAINTEXT"
+
+    @cached_property
+    def target_security_protocol(self) -> str:
+        """Return the security protocol for the target cluster."""
+        return "SASL_SSL" if self.target_tls_enabled else "SASL_PLAINTEXT"
+
+    @property
+    def sasl_mechanism(self) -> str:
+        """Return the SASL mechanism used for authentication."""
+        return "SCRAM-SHA-512"
+
+    def tls_config(self, endpoint: str) -> dict:
+        """Return the TLS configuration for the given endpoint."""
+        return {
+            f"{endpoint}.ssl.truststore.location": self.connect_truststore_path,
+            f"{endpoint}.ssl.truststore.password": f"${{file:{self.connect_truststore_password_path}:{self.connect_truststore_password_key}}}",
+        }
 
     @override
     def setup(self) -> None:
@@ -221,7 +227,7 @@ class Integrator(BaseIntegrator):
                 "producer.enable.idempotence": "true",
             }
             | prefix_policy
-            | self.common_auth
+            | self.cluster_auth
             | self.producer_override
         )
 
@@ -246,7 +252,7 @@ class Integrator(BaseIntegrator):
                 "sync.group.offsets.interval.seconds": 5,
             }
             | prefix_policy
-            | self.common_auth
+            | self.cluster_auth
             | self.producer_override
         )
 
