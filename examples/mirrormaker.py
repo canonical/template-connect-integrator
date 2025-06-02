@@ -128,7 +128,7 @@ class Integrator(BaseIntegrator):
 
     @cached_property
     def cluster_auth(self):
-        """Return the common authentication configuration for both source and target clusters."""
+        """Return the authentication configuration for both source and target clusters."""
         cluster_auth = {
             "source.cluster.bootstrap.servers": self.source_data.get("endpoints"),
             "target.cluster.bootstrap.servers": self.target_data.get("endpoints"),
