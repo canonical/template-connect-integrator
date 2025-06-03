@@ -55,7 +55,7 @@ async def test_deploy_cluster(
     # TLS extra logic if --tls is set
     if tls_enabled:
         tls_config = {"ca-common-name": "kafka"}
-        await ops_test.model.deploy(TLS_APP, channel="stable", config=tls_config, series="jammy")
+        await ops_test.model.deploy(TLS_APP, channel="latest/stable", config=tls_config)
         await ops_test.model.wait_for_idle(apps=[TLS_APP], idle_period=20)
 
         await ops_test.model.integrate(CONNECT_APP, TLS_APP)
