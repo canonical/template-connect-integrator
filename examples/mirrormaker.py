@@ -14,7 +14,11 @@ from charms.data_platform_libs.v0.data_interfaces import (
 from kafkacl import BaseConfigFormatter, BaseIntegrator, ConfigOption
 from typing_extensions import override
 
-from literals import SUBSTRATE
+from literals import (
+    CONNECT_TRUSTSTORE_PASSWORD_KEY,
+    CONNECT_TRUSTSTORE_PASSWORD_PATH,
+    CONNECT_TRUSTSTORE_PATH,
+)
 from workload import NotRequiredPluginServer
 
 logger = logging.getLogger(__name__)
@@ -76,16 +80,6 @@ class Integrator(BaseIntegrator):
     name = "kafka-mirrormaker-integrator"
     formatter = MirrormakerConfigFormatter
     plugin_server = NotRequiredPluginServer
-
-    connect_truststore_password_key = "truststore"
-    if SUBSTRATE == "k8s":
-        connect_truststore_password_path = "/etc/connect/truststore.password"
-        connect_truststore_path = "/etc/connect/truststore.jks"
-    elif SUBSTRATE == "vm":
-        connect_truststore_password_path = (
-            "/var/snap/charmed-kafka/current/etc/connect/truststore.password"
-        )
-        connect_truststore_path = "/var/snap/charmed-kafka/current/etc/connect/truststore.jks"
 
     SOURCE_REL = "source"
     TARGET_REL = "target"
@@ -187,8 +181,8 @@ class Integrator(BaseIntegrator):
     def tls_config(self, endpoint: str) -> dict:
         """Return the TLS configuration for the given endpoint."""
         return {
-            f"{endpoint}.ssl.truststore.location": self.connect_truststore_path,
-            f"{endpoint}.ssl.truststore.password": f"${{file:{self.connect_truststore_password_path}:{self.connect_truststore_password_key}}}",
+            f"{endpoint}.ssl.truststore.location": CONNECT_TRUSTSTORE_PATH,
+            f"{endpoint}.ssl.truststore.password": f"${{file:{CONNECT_TRUSTSTORE_PASSWORD_PATH}:{CONNECT_TRUSTSTORE_PASSWORD_KEY}}}",
         }
 
     @override

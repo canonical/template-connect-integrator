@@ -11,7 +11,7 @@ import yaml
 
 Substrates = Literal["vm", "k8s"]
 
-SUBSTRATE = "vm"
+SUBSTRATE: Substrates = "vm"
 
 try:
     METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
@@ -30,3 +30,16 @@ GROUP = "root"
 
 REST_PORT = 8080
 PLUGIN_RESOURCE_KEY = "connect-plugin"
+
+
+# NOTE: Connect truststore password is located on the connect charm. This is to avoid
+# sharing the password through the config on the integrator charm.
+if SUBSTRATE == "k8s":
+    CONNECT_TRUSTSTORE_PASSWORD_PATH = "/etc/connect/truststore.password"
+    CONNECT_TRUSTSTORE_PATH = "/etc/connect/truststore.jks"
+elif SUBSTRATE == "vm":
+    CONNECT_TRUSTSTORE_PASSWORD_PATH = (
+        "/var/snap/charmed-kafka/current/etc/connect/truststore.password"
+    )
+    CONNECT_TRUSTSTORE_PATH = "/var/snap/charmed-kafka/current/etc/connect/truststore.jks"
+CONNECT_TRUSTSTORE_PASSWORD_KEY = "truststore"
