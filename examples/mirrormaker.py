@@ -5,6 +5,7 @@
 """Basic implementation of an Integrator for Kafka MirrorMaker."""
 
 import logging
+from functools import cached_property
 
 from charms.data_platform_libs.v0.data_interfaces import (
     KafkaRequirerData,
@@ -13,6 +14,11 @@ from charms.data_platform_libs.v0.data_interfaces import (
 from kafkacl import BaseConfigFormatter, BaseIntegrator, ConfigOption
 from typing_extensions import override
 
+from literals import (
+    CONNECT_TRUSTSTORE_PASSWORD_KEY,
+    CONNECT_TRUSTSTORE_PASSWORD_PATH,
+    CONNECT_TRUSTSTORE_PATH,
+)
 from workload import NotRequiredPluginServer
 
 logger = logging.getLogger(__name__)
@@ -34,7 +40,18 @@ class MirrormakerConfigFormatter(BaseConfigFormatter):
         default="org.apache.kafka.connect.converters.ByteArrayConverter",
         configurable=True,
     )
+
     # Non-configurable options
+    config_providers = ConfigOption(
+        json_key="config.providers",
+        default="file",
+        configurable=False,
+    )
+    config_providers_file_class = ConfigOption(
+        json_key="config.providers.file.class",
+        default="org.apache.kafka.common.config.provider.FileConfigProvider",
+        configurable=False,
+    )
 
     # General charm config
     topics = ConfigOption(
@@ -93,10 +110,83 @@ class Integrator(BaseIntegrator):
         )
         self.target = KafkaRequirerEventHandlers(self.charm, self.target_requirer_data)
 
+    @cached_property
+    def source_data(self):
+        """Return the source cluster data."""
+        return self.helpers.fetch_all_relation_data(self.SOURCE_REL)
+
+    @cached_property
+    def target_data(self):
+        """Return the target cluster data."""
+        return self.helpers.fetch_all_relation_data(self.TARGET_REL)
+
+    @cached_property
+    def cluster_auth(self):
+        """Return the authentication configuration for both source and target clusters."""
+        cluster_auth = {
+            "source.cluster.bootstrap.servers": self.source_data.get("endpoints"),
+            "target.cluster.bootstrap.servers": self.target_data.get("endpoints"),
+            "source.cluster.security.protocol": self.source_security_protocol,
+            "source.cluster.sasl.mechanism": self.sasl_mechanism,
+            "source.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{self.source_data.get('username')}\" password=\"{self.source_data.get('password')}\";",
+            "target.cluster.security.protocol": self.target_security_protocol,
+            "target.cluster.sasl.mechanism": self.sasl_mechanism,
+            "target.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{self.target_data.get('username')}\" password=\"{self.target_data.get('password')}\";",
+        }
+        if self.source_tls_enabled:
+            cluster_auth.update(self.tls_config("source.cluster"))
+        if self.target_tls_enabled:
+            cluster_auth.update(self.tls_config("target.cluster"))
+
+        return cluster_auth
+
+    @cached_property
+    def producer_override(self):
+        """Return the producer override configuration for target clusters."""
+        producer_override = {
+            "producer.override.bootstrap.servers": self.target_data.get("endpoints"),
+            "producer.override.security.protocol": self.target_security_protocol,
+            "producer.override.sasl.mechanism": self.sasl_mechanism,
+            "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{self.target_data.get('username')}\" password=\"{self.target_data.get('password')}\";",
+        }
+        if self.target_tls_enabled:
+            producer_override.update(self.tls_config("producer.override"))
+        return producer_override
+
+    @cached_property
+    def source_tls_enabled(self) -> bool:
+        """Return whether TLS is enabled for the source cluster."""
+        return bool(self.source_data.get("tls", "disabled") == "enabled")
+
+    @cached_property
+    def target_tls_enabled(self) -> bool:
+        """Return whether TLS is enabled for the target cluster."""
+        return bool(self.target_data.get("tls", "disabled") == "enabled")
+
+    @cached_property
+    def source_security_protocol(self) -> str:
+        """Return the security protocol for the source cluster."""
+        return "SASL_SSL" if self.source_tls_enabled else "SASL_PLAINTEXT"
+
+    @cached_property
+    def target_security_protocol(self) -> str:
+        """Return the security protocol for the target cluster."""
+        return "SASL_SSL" if self.target_tls_enabled else "SASL_PLAINTEXT"
+
+    @property
+    def sasl_mechanism(self) -> str:
+        """Return the SASL mechanism used for authentication."""
+        return "SCRAM-SHA-512"
+
+    def tls_config(self, endpoint: str) -> dict:
+        """Return the TLS configuration for the given endpoint."""
+        return {
+            f"{endpoint}.ssl.truststore.location": CONNECT_TRUSTSTORE_PATH,
+            f"{endpoint}.ssl.truststore.password": f"${{file:{CONNECT_TRUSTSTORE_PASSWORD_PATH}:{CONNECT_TRUSTSTORE_PASSWORD_KEY}}}",
+        }
+
     @override
     def setup(self) -> None:
-        source_data = self.helpers.fetch_all_relation_data(self.SOURCE_REL)
-        target_data = self.helpers.fetch_all_relation_data(self.TARGET_REL)
         source_cluster_alias = self.helpers.remote_app_name(self.SOURCE_REL) or "source"
         target_cluster_alias = self.helpers.remote_app_name(self.TARGET_REL) or "target"
 
@@ -105,17 +195,6 @@ class Integrator(BaseIntegrator):
             prefix_policy = {
                 "replication.policy.class": "org.apache.kafka.connect.mirror.IdentityReplicationPolicy"
             }
-
-        common_auth = {
-            "source.cluster.bootstrap.servers": source_data.get("endpoints"),
-            "target.cluster.bootstrap.servers": target_data.get("endpoints"),
-            "source.cluster.security.protocol": "SASL_PLAINTEXT",
-            "source.cluster.sasl.mechanism": "SCRAM-SHA-512",
-            "source.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{source_data.get('username')}\" password=\"{source_data.get('password')}\";",
-            "target.cluster.security.protocol": "SASL_PLAINTEXT",
-            "target.cluster.sasl.mechanism": "SCRAM-SHA-512",
-            "target.cluster.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
-        }
 
         mirror_source = (
             {
@@ -140,26 +219,11 @@ class Integrator(BaseIntegrator):
                 "refresh.groups.interval.seconds": 5,
                 "consumer.auto.offset.reset": "earliest",
                 "producer.enable.idempotence": "true",
-                "producer.override.bootstrap.servers": target_data.get("endpoints"),
-                "producer.override.security.protocol": "SASL_PLAINTEXT",
-                "producer.override.sasl.mechanism": "SCRAM-SHA-512",
-                "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
             }
             | prefix_policy
-            | common_auth
+            | self.cluster_auth
+            | self.producer_override
         )
-
-        # TODO: To be implemented in a follow-up PR
-        # Commented out for now, as it is not needed for the current implementation
-        # mirror_heartbeat = (
-        #     {
-        #         "name": "heartbeat",
-        #         "connector.class": "org.apache.kafka.connect.mirror.MirrorHeartbeatConnector",
-        #         "emit.heartbeats.enabled": True,
-        #         "consumer.auto.offset.reset": "earliest",
-        #     }
-        #     | common_auth
-        # )
 
         mirror_checkpoint = (
             {
@@ -180,13 +244,10 @@ class Integrator(BaseIntegrator):
                 "refresh.groups.interval.seconds": 5,
                 "sync.group.offsets.enabled": True,
                 "sync.group.offsets.interval.seconds": 5,
-                "producer.override.bootstrap.servers": target_data.get("endpoints"),
-                "producer.override.security.protocol": "SASL_PLAINTEXT",
-                "producer.override.sasl.mechanism": "SCRAM-SHA-512",
-                "producer.override.sasl.jaas.config": f"org.apache.kafka.common.security.scram.ScramLoginModule required username=\"{target_data.get('username')}\" password=\"{target_data.get('password')}\";",
             }
-            | common_auth
             | prefix_policy
+            | self.cluster_auth
+            | self.producer_override
         )
 
         self.configure([mirror_source, mirror_checkpoint])

@@ -3,6 +3,7 @@ import logging
 import random
 import re
 import socket
+import ssl
 import string
 from dataclasses import dataclass
 
@@ -31,6 +32,7 @@ MYSQL_DB = "test_db"
 POSTGRES_INTEGRATOR = "postgres-sink-integrator"
 POSTGRES_DB = "sink_db"
 PLUGIN_RESOURCE_KEY = "connect-plugin"
+TLS_APP = "self-signed-certificates"
 
 JDBC_SOURCE_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSourceConnector"
 JDBC_SINK_CONNECTOR_CLASS = "io.aiven.connect.jdbc.JdbcSinkConnector"
@@ -150,22 +152,17 @@ async def assert_messages_produced(
     no_messages: int = 1,
     consumer_group: str | None = None,
     pattern: str | None = None,
+    tls: bool = False,
 ) -> None:
     """Asserts `no_messages` has been produced to `topic`."""
-    username = "admin"
-    password = await get_kafka_password(ops_test, kafka_app)
-    server = await get_unit_ipv4_address(ops_test, ops_test.model.applications[kafka_app].units[0])
-
+    config = await _kafka_auth_config(ops_test, kafka_app, tls)
     messages = []
+
     try:
         consumer = kafka.KafkaConsumer(
             topic,
-            bootstrap_servers=f"{server}:9092",
-            sasl_mechanism="SCRAM-SHA-512",
-            sasl_plain_username=username,
-            sasl_plain_password=password,
+            **config,
             auto_offset_reset="earliest",
-            security_protocol="SASL_PLAINTEXT",
             consumer_timeout_ms=5000,
             group_id=consumer_group,
         )
@@ -209,22 +206,15 @@ def patched_dns_lookup(host, port, afi, records: dict = {}):
 
 
 async def produce_messages(
-    ops_test: OpsTest, kafka_app: str, topic: str = "test", no_messages: int = 1
+    ops_test: OpsTest,
+    kafka_app: str,
+    topic: str = "test",
+    no_messages: int = 1,
+    tls: bool = False,
 ) -> None:
     """Creates `topic` and produces `no_messages` to it."""
     # Using internal credentials for kafka
-    username = "admin"
-    password = await get_kafka_password(ops_test, kafka_app)
-    server = await get_unit_ipv4_address(ops_test, ops_test.model.applications[kafka_app].units[0])
-
-    config = {
-        "bootstrap_servers": f"{server}:9092",
-        "sasl_mechanism": "SCRAM-SHA-512",
-        "sasl_plain_username": username,
-        "sasl_plain_password": password,
-        "security_protocol": "SASL_PLAINTEXT",
-    }
-
+    config = await _kafka_auth_config(ops_test, kafka_app, tls)
     admin_client = kafka.KafkaAdminClient(**config, client_id="test-admin")
 
     topic_list = [NewTopic(name=topic, num_partitions=10, replication_factor=1)]
@@ -246,24 +236,14 @@ async def produce_messages(
 
 
 async def cleanup_mm_topics(
-    ops_test: OpsTest, kafka_apps: list[str] = [KAFKA_APP], extra_topics: list[str] = []
+    ops_test: OpsTest,
+    kafka_apps: list[str] = [KAFKA_APP],
+    extra_topics: list[str] = [],
+    tls: bool = False,
 ) -> None:
     """Cleans up the topics created by MirrorMaker."""
     for kafka_app in kafka_apps:
-        username = "admin"
-        password = await get_kafka_password(ops_test, kafka_app)
-        server = await get_unit_ipv4_address(
-            ops_test, ops_test.model.applications[kafka_app].units[0]
-        )
-
-        config = {
-            "bootstrap_servers": f"{server}:9092",
-            "sasl_mechanism": "SCRAM-SHA-512",
-            "sasl_plain_username": username,
-            "sasl_plain_password": password,
-            "security_protocol": "SASL_PLAINTEXT",
-        }
-
+        config = await _kafka_auth_config(ops_test, kafka_app, tls)
         admin_client = kafka.KafkaAdminClient(**config, client_id="test-admin")
 
         # Delete topics created by MirrorMaker:
@@ -282,3 +262,27 @@ async def cleanup_mm_topics(
                 continue
 
         admin_client.close()
+
+
+async def _kafka_auth_config(ops_test: OpsTest, kafka_app: str, tls: bool = False):
+    """Generates the kafka configuration."""
+    username = "admin"
+    password = await get_kafka_password(ops_test, kafka_app)
+    server = await get_unit_ipv4_address(ops_test, ops_test.model.applications[kafka_app].units[0])
+
+    port = 19093 if tls else 19092
+    security_protocol = "SASL_SSL" if tls else "SASL_PLAINTEXT"
+    ssl_context = None
+    if tls:
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+
+    return {
+        "bootstrap_servers": f"{server}:{port}",
+        "sasl_mechanism": "SCRAM-SHA-512",
+        "sasl_plain_username": username,
+        "sasl_plain_password": password,
+        "security_protocol": security_protocol,
+        "ssl_context": ssl_context,
+    }
