@@ -63,6 +63,7 @@ jobs:
           - integration-s3
           - integration-mirrormaker
           - integration-mirrormaker-tls
+          - integration-mongodb
 
     name: ${{ matrix.tox-environments }} (VM)
     needs:

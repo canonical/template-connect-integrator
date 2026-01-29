@@ -23,6 +23,10 @@ description: The Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} M
 display-name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} PostgreSQL Integrator
 summary: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} PostgreSQL Integrator
 description: The Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} PostgreSQL Integrator charm enables the management of Apache Kafka Connect tasks to transfer data to/from a Charmed PostgreSQL{{ "" if substrate == "vm" else " K8s" }} application and a Charmed Apache Kafka{{ "" if substrate == "vm" else " K8s" }} application over JDBC.
+{%- elif impl == "mongodb" %}
+display-name: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MongoDB Integrator
+summary: Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MongoDB Integrator
+description: The Apache Kafka Connect{{ "" if substrate == "vm" else " K8s" }} MongoDB Integrator charm enables the management of Apache Kafka Connect tasks to transfer data to/from a Charmed MongoDB{{ "" if substrate == "vm" else " K8s" }} application and a Charmed Apache Kafka{{ "" if substrate == "vm" else " K8s" }} application over the Debezium connector.
 {%- endif %}
 
 source: https://github.com/canonical/template-connect-integrator
@@ -36,6 +40,8 @@ links:
     - https://github.com/Aiven-Open/opensearch-connector-for-apache-kafka/releases/download/v3.1.1/opensearch-connector-for-apache-kafka-3.1.1.tar
 {%- elif impl == "s3" %}
     - https://github.com/Aiven-Open/cloud-storage-connectors-for-apache-kafka/releases/download/v3.1.0/s3-sink-connector-for-apache-kafka-3.1.0.tar
+{%- elif impl == "mongodb" %}
+    - https://repo1.maven.org/maven2/io/debezium/debezium-connector-mongodb/3.4.0.Final/debezium-connector-mongodb-3.4.0.Final-plugin.tar.gz
 {%- endif %}
 
 website:
