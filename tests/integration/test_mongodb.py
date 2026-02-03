@@ -49,7 +49,7 @@ async def grant_cluster_monitor(ops_test: OpsTest, substrate: str, username: str
 
     grant_cmd = f'db.grantRolesToUser("{username}", ["clusterMonitor"])'
     mongosh_cmd = [
-        "charmed-mongodb.mongosh",
+        "charmed-mongodb.mongosh" if substrate == "vm" else "mongosh",
         f'"mongodb://{username}:{password}@{mongo_ip}:27017/admin?replicaSet=mongodb&authSource=admin"',
         "--eval",
         f"'{grant_cmd}'",
@@ -57,6 +57,8 @@ async def grant_cluster_monitor(ops_test: OpsTest, substrate: str, username: str
 
     if substrate == "vm":
         res = await run_command_on_unit(ops_test, mongo_unit, mongosh_cmd)
+    else:
+        res = await run_command_on_unit(ops_test, mongo_unit, mongosh_cmd, container="mongod")
 
     logger.info(f"Grant clusterMonitor result: {res.stdout}")
     assert res.return_code == 0
@@ -77,7 +79,7 @@ async def generate_test_data(
 
     insert_cmd = f"db.test_collection.insertMany([{', '.join(documents)}])"
     mongosh_cmd = [
-        "charmed-mongodb.mongosh",
+        "charmed-mongodb.mongosh" if substrate == "vm" else "mongosh",
         f'"mongodb://{username}:{password}@{mongo_ip}:27017/{db_name}?replicaSet=mongodb&authSource=admin"',
         "--eval",
         f"'{insert_cmd}'",
