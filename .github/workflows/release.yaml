@@ -97,6 +97,15 @@ jobs:
             substrate: vm
             data-interface: opensearch_client
             impl: opensearch
+          # mongodb
+          - name: mongodb-connect-integrator
+            substrate: vm
+            data-interface: mongodb_client
+            impl: mongodb
+          - name: mongodb-connect-k8s-integrator
+            substrate: k8s
+            data-interface: mongodb_client
+            impl: mongodb
           # mirrormaker
           - name: mirrormaker-connect-integrator
             substrate: vm

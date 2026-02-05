@@ -16,6 +16,8 @@ from helpers import (
     KAFKA_APP,
     KAFKA_APP_B,
     KAFKA_CHANNEL,
+    MONGODB_APP,
+    MONGODB_CHANNEL,
     MYSQL_APP,
     MYSQL_CHANNEL,
     POSTGRES_APP,
@@ -101,6 +103,16 @@ async def deploy_mysql(ops_test: OpsTest, substrate) -> None:
     kwargs = {} if substrate == "vm" else {"trust": True}
     await ops_test.model.deploy(
         charm_name, channel=MYSQL_CHANNEL, application_name=MYSQL_APP, num_units=1, **kwargs
+    )
+
+
+@pytest.fixture(scope="module")
+async def deploy_mongodb(ops_test: OpsTest, substrate) -> None:
+    """Deploys the MongoDB Charm, the deployed application name would be determined by `MONGODB_APP` variable."""
+    charm_name = "mongodb" if substrate == "vm" else "mongodb-k8s"
+    kwargs = {} if substrate == "vm" else {"trust": True}
+    await ops_test.model.deploy(
+        charm_name, channel=MONGODB_CHANNEL, application_name=MONGODB_APP, num_units=1, **kwargs
     )
 
 
