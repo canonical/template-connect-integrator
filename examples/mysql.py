@@ -74,7 +74,7 @@ class Integrator(BaseIntegrator):
         self.db_name = str(self.charm.config.get("db_name", "test_db"))
 
         self.database_requirer_data = DatabaseRequirerData(
-            self.model, self.DB_CLIENT_REL, self.db_name, extra_user_roles="admin"
+            self.model, self.DB_CLIENT_REL, self.db_name, extra_user_roles="charmed_dba"
         )
         self.database = DatabaseRequirerEventHandlers(self.charm, self.database_requirer_data)
 
