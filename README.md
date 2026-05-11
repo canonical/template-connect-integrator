@@ -69,11 +69,12 @@ juju integrate kafka-connect integrator
 | **PostgreSQL** | Yes | Yes | No | Yes* | Yes |
 | **MongoDB** | No | No | Yes | No** | Yes |
 
-**Constraints:**
+\* **OpenSearch from JDBC sources**: Works because OpenSearch sink uses `schema.ignore=true` and `key.ignore=true`, so it can ingest any JSON payload. However, the JDBC source JSON structure may need the schema to be stripped (which `schema.ignore` handles).  
+\*\* **OpenSearch from MongoDB**: Debezium CDC envelope format is nested JSON, OpenSearch would index the raw CDC envelope as-is. Technically possible but doesn't make sense.
+
+### Notes
 
 - **MySQL <--> PostgreSQL**: Both use the same Aiven JDBC connector with `JsonConverter`. They produce/consume compatible JSON, so they can cross-feed each other.
 - **MongoDB sink requires Debezium CDC format**: The MongoDB sink expects Debezium-formatted change events. Only the MongoDB source produces this format, so **MongoDB sink only works with MongoDB source**.
 - **MongoDB source produces Debezium CDC format**: The JSON emitted by the Debezium MongoDB source includes CDC envelope fields (`before`, `after`, `op`, `source`). This is **not compatible** with the JDBC sink connectors (MySQL/PostgreSQL) which expect flat JSON records.
-- \***OpenSearch from JDBC sources**: Works because OpenSearch sink uses `schema.ignore=true` and `key.ignore=true`, so it can ingest any JSON payload. However, the JDBC source JSON structure may need the schema to be stripped (which `schema.ignore` handles).
-- \*\***OpenSearch from MongoDB**: Debezium CDC envelope format is nested JSON, OpenSearch would index the raw CDC envelope as-is. Technically possible but doesn't make sense.
 - **S3 as universal sink**: Uses `ByteArrayConverter` for both key and value, so it accepts any format. Works with all sources.
