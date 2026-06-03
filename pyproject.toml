@@ -45,6 +45,7 @@ lightkube = "0.15.0"
 fastapi = "^0.136"
 uvicorn = "0.34.0"
 starlette = "^1.0.1"
+pydantic-settings = "^2.14.1"
 
 [tool.poetry.group.charm-libs.dependencies]
 # data_platform_libs/v0/data_interfaces.py
