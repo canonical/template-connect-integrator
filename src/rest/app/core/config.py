@@ -9,7 +9,7 @@ from typing import List, Union
 from pydantic import BaseSettings, validator
 
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # pyright: ignore[reportGeneralTypeIssues]
     """Application configuration object."""
 
     PROJECT_NAME: str = "Kafka Connect Integrator REST API"
