@@ -15,7 +15,7 @@ from kafka.admin import NewTopic
 from ops.model import Unit
 from pytest_operator.plugin import OpsTest
 
-K8S_IMAGE = "ubuntu/python:3.12-24.04_stable"
+K8S_IMAGE = "ubuntu/python:3.10-22.04"
 CONNECT_APP = "kafka-connect"
 CONNECT_CHANNEL = "latest/edge"
 CONNECT_ADMIN_USER = "admin"
